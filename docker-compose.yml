@@ -1,0 +1,82 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: budget_blade_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-budgetblade}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - budget_blade_network
+
+  backend:
+    image: node:22-alpine
+    working_dir: /app
+    container_name: budget_blade_backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "auth.test:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-budgetblade}
+      AUTH_BASE_URL: ${AUTH_BASE_URL}
+      AUTH_TOKEN_URL: ${AUTH_TOKEN_URL}
+      AUTH_USERINFO_URL: ${AUTH_USERINFO_URL}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID}
+      AUTH_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
+      AUTH_SCOPE: ${AUTH_SCOPE:-}
+      AUTH_USERINFO_CACHE_TTL_MS: ${AUTH_USERINFO_CACHE_TTL_MS:-30000}
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm start"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - budget_blade_network
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    container_name: budget_blade_frontend
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      VITE_API_URL: http://localhost:3000
+    ports:
+      - "5173:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run build && npm start"
+    networks:
+      - budget_blade_network
+
+volumes:
+  postgres_data:
+
+networks:
+  budget_blade_network:
+    driver: bridge

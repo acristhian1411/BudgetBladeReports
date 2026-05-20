@@ -1,0 +1,31 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@layer base {
+  body {
+    @apply bg-brand-deep text-white font-sans;
+  }
+
+  a {
+    @apply text-brand-cyan hover:text-opacity-80 transition-opacity;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-brand-surface-1 border border-brand-surface-2 rounded-lg p-6;
+  }
+
+  .button-primary {
+    @apply px-4 py-2 bg-brand-cyan text-brand-deep font-semibold rounded hover:opacity-90 disabled:opacity-50 transition-opacity;
+  }
+
+  .button-secondary {
+    @apply px-4 py-2 bg-brand-surface-2 text-white font-semibold rounded hover:bg-brand-surface-1 disabled:opacity-50 transition-colors;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2 bg-brand-surface-2 border border-brand-surface-2 rounded focus:border-brand-cyan outline-none transition-colors;
+  }
+}
