@@ -39,7 +39,7 @@
     </div>
   {:else if summary}
     <!-- KPI Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <!-- Total Balance -->
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
@@ -47,6 +47,16 @@
         </div>
         <div class="text-4xl font-bold text-brand-emerald">
           {formatCurrency(summary.totalBalance)}
+        </div>
+      </div>
+
+      <!-- Available Cash -->
+      <div class="card">
+        <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
+          Available Cash
+        </div>
+        <div class="text-4xl font-bold text-brand-cyan">
+          {formatCurrency(summary.availableCash || 0)}
         </div>
       </div>
 
@@ -77,12 +87,22 @@
           {summary.byCategory.length}
         </div>
       </div>
+
+      <!-- Income Categories -->
+      <div class="card">
+        <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
+          Income Categories
+        </div>
+        <div class="text-3xl font-bold text-brand-emerald">
+          {(summary.incomeByCategory || []).length}
+        </div>
+      </div>
     </div>
 
-    <!-- Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Categories Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- Spending by Category -->
-      <div class="lg:col-span-2 card">
+      <div class="card">
         <h2 class="text-xl font-bold mb-4">Top Expense Categories</h2>
         <div class="space-y-3">
           {#each summary.byCategory.slice(0, 8) as category (category.name)}
@@ -108,7 +128,37 @@
         </div>
       </div>
 
-      <!-- Upcoming Commitments -->
+      <!-- Income by Category -->
+      <div class="card">
+        <h2 class="text-xl font-bold mb-4">Top Income Categories</h2>
+        <div class="space-y-3">
+          {#each (summary.incomeByCategory || []).slice(0, 8) as category (category.name)}
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-sm">{category.name}</span>
+                <span class="text-sm font-semibold"
+                  >{formatCurrency(category.total)}</span
+                >
+              </div>
+              <div class="bg-brand-surface-2 rounded h-2">
+                <div
+                  class="bg-brand-emerald h-2 rounded"
+                  style="width: {Math.min(
+                    100,
+                    (category.total /
+                      ((summary.incomeByCategory || [])[0]?.total || 1)) *
+                      100,
+                  )}%"
+                />
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </div>
+
+    <!-- Commitments -->
+    <div class="grid grid-cols-1 gap-6">
       <div class="card">
         <h2 class="text-xl font-bold mb-4">Next Payments</h2>
         <div class="space-y-3">
@@ -191,10 +241,10 @@
                 >
                 <td
                   class="py-3 px-3 text-right font-semibold"
-                  class:text-brand-emerald={txn.type === "income"}
-                  class:text-brand-rose={txn.type === "expense"}
+                  class:text-brand-emerald={txn.type === "ingreso"}
+                  class:text-brand-rose={txn.type === "egreso"}
                 >
-                  {txn.type === "income" ? "+" : "-"}{formatCurrency(
+                  {txn.type === "ingreso" ? "+" : "-"}{formatCurrency(
                     Math.abs(txn.amount),
                   )}
                 </td>

@@ -33,6 +33,17 @@ router.get('/summary', async (req, res, next) => {
       LIMIT 10
     `);
 
+    // Income by category
+    const incomeByCategory = await db.query(`
+      SELECT c.name, c.type, SUM(t.amount) as total
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      WHERE t.type = 'ingreso'
+      GROUP BY c.id, c.name, c.type
+      ORDER BY total DESC
+      LIMIT 10
+    `);
+
     // Recent transactions
     const recentTransactions = await db.query(`
       SELECT 
@@ -86,9 +97,29 @@ router.get('/summary', async (req, res, next) => {
       ORDER BY tl.name ASC
     `);
 
+    // Available cash (non-bank tills)
+    const availableCash = await db.query(`
+      SELECT COALESCE(SUM(
+        CASE
+          WHEN t.type = 'ingreso' THEN t.amount
+          WHEN t.type = 'egreso' THEN -t.amount
+          ELSE 0
+        END
+      ), 0) as total
+      FROM tills tl
+      LEFT JOIN transactions t ON t.till_id = tl.id
+      WHERE COALESCE(tl.is_bank, false) = false
+    `);
+
     res.json({
       totalBalance: parseFloat(totalBalance.rows[0]?.total || 0),
+      availableCash: parseFloat(availableCash.rows[0]?.total || 0),
       byCategory: byCategory.rows.map(row => ({
+        name: row.name,
+        type: row.type,
+        total: parseFloat(row.total),
+      })),
+      incomeByCategory: incomeByCategory.rows.map(row => ({
         name: row.name,
         type: row.type,
         total: parseFloat(row.total),
