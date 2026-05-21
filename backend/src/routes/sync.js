@@ -36,7 +36,7 @@ const TABLE_COLUMNS = {
     'failed_attempts',
     'locked_until',
   ],
-  tills: ['id', 'name', 'account_number'],
+  tills: ['id', 'name', 'account_number', 'is_bank'],
   categories: ['id', 'name', 'type'],
   entities: ['id', 'name', 'type', 'contact'],
   transactions: [
@@ -140,14 +140,25 @@ router.post('/import', upload.single('file'), async (req, res, next) => {
       for (const row of rows) {
         if (!row || typeof row !== 'object') continue;
 
+        const normalizedRow =
+          tableName === 'tills'
+            ? {
+                ...row,
+                // Mobile backups don't include is_bank; infer from account number.
+                is_bank: Boolean(String(row.account_number ?? '').trim()),
+              }
+            : row;
+
         const validColumns = allowedColumns.filter(
-          (c) => Object.prototype.hasOwnProperty.call(row, c) && row[c] !== undefined,
+          (c) =>
+            Object.prototype.hasOwnProperty.call(normalizedRow, c) &&
+            normalizedRow[c] !== undefined,
         );
 
         if (validColumns.length === 0) continue;
 
         const placeholders = validColumns.map((_, i) => `$${i + 1}`).join(', ');
-        const values = validColumns.map((c) => row[c]);
+        const values = validColumns.map((c) => normalizedRow[c]);
 
         try {
           await client.query(
