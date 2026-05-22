@@ -16,6 +16,7 @@ router.get('/summary', async (req, res, next) => {
         CASE 
           WHEN type = 'ingreso' THEN amount
           WHEN type = 'egreso' THEN -amount
+          WHEN type = 'transferencia' THEN amount
           ELSE 0
         END
       ), 0) as total
@@ -38,7 +39,7 @@ router.get('/summary', async (req, res, next) => {
       SELECT c.name, c.type, SUM(t.amount) as total
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
-      WHERE t.type = 'ingreso'
+      WHERE (t.type = 'ingreso' or t.type = 'transferencia') 
       GROUP BY c.id, c.name, c.type
       ORDER BY total DESC
       LIMIT 10
@@ -88,6 +89,7 @@ router.get('/summary', async (req, res, next) => {
           CASE
             WHEN t.type = 'ingreso' THEN t.amount
             WHEN t.type = 'egreso' THEN -t.amount
+            WHEN t.type = 'transferencia' THEN t.amount
             ELSE 0
           END
         ), 0) as balance
@@ -103,6 +105,7 @@ router.get('/summary', async (req, res, next) => {
         CASE
           WHEN t.type = 'ingreso' THEN t.amount
           WHEN t.type = 'egreso' THEN -t.amount
+          WHEN t.type = 'transferencia' THEN t.amount
           ELSE 0
         END
       ), 0) as total
