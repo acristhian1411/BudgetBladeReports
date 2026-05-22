@@ -29,3 +29,9 @@
     @apply w-full px-4 py-2 bg-brand-surface-2 border border-brand-surface-2 rounded focus:border-brand-cyan outline-none transition-colors;
   }
 }
+
+@layer utilities {
+  .text-brand-surface-2 {
+    @apply text-slate-300;
+  }
+}
