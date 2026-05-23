@@ -13,25 +13,28 @@ router.get('/', async (req, res, next) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let query = 'SELECT * FROM transactions WHERE 1=1';
+    let query = 'SELECT transactions.*, categories.name as category_name, tills.name as till_name FROM transactions ' +
+          'LEFT JOIN categories ON transactions.category_id = categories.id ' +
+          'LEFT JOIN tills ON transactions.till_id = tills.id ' +
+                'WHERE 1=1';
     const params = [];
 
     if (type) {
-      query += ` AND type = $${params.length + 1}`;
+      query += ` AND transactions.type = $${params.length + 1}`;
       params.push(type);
     }
 
     if (category_id) {
-      query += ` AND category_id = $${params.length + 1}`;
+      query += ` AND transactions.category_id = $${params.length + 1}`;
       params.push(parseInt(category_id));
     }
 
     if (till_id) {
-      query += ` AND till_id = $${params.length + 1}`;
+      query += ` AND transactions.till_id = $${params.length + 1}`;
       params.push(parseInt(till_id));
     }
 
-    query += ' ORDER BY transaction_date DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+    query += ' ORDER BY transactions.transaction_date DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
     params.push(parseInt(limit), offset);
 
     const transactions = await db.query(query, params);
