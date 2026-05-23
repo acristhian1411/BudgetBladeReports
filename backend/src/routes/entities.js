@@ -60,11 +60,32 @@ router.get('/:id/ledger', async (req, res, next) => {
       ORDER BY t.transaction_date DESC
     `, [id]);
 
+    const reminders = await db.query(`
+      SELECT
+        sp.id,
+        sp.title,
+        sp.start_date,
+        sp.base_amount,
+        sp.total_installments,
+        c.name as category_name,
+        tl.name as till_name
+      FROM scheduled_plans sp
+      LEFT JOIN categories c ON sp.category_id = c.id
+      LEFT JOIN tills tl ON sp.till_id = tl.id
+      WHERE sp.entity_id = $1
+      AND NOT EXISTS (
+        SELECT 1
+        FROM scheduled_occurrences so
+        WHERE so.plan_id = sp.id
+      )
+      ORDER BY sp.start_date ASC, sp.id ASC
+    `, [id]);
+
     // Calculate totals
     const totals = await db.query(`
       SELECT 
-        COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as total_payable,
-        COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as total_received
+        COALESCE(SUM(CASE WHEN t.type = 'egreso' THEN t.amount ELSE 0 END), 0) as total_payable,
+        COALESCE(SUM(CASE WHEN t.type IN ('ingreso', 'transferencia') THEN t.amount ELSE 0 END), 0) as total_received
       FROM transactions t
       WHERE t.id IN (
         SELECT transaction_id FROM scheduled_occurrences so
@@ -78,6 +99,10 @@ router.get('/:id/ledger', async (req, res, next) => {
       transactions: transactions.rows.map(row => ({
         ...row,
         amount: parseFloat(row.amount),
+      })),
+      reminders: reminders.rows.map(row => ({
+        ...row,
+        base_amount: row.base_amount === null ? null : parseFloat(row.base_amount),
       })),
       totals: {
         total_payable: parseFloat(totals.rows[0]?.total_payable || 0),

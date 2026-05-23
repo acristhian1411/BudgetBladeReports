@@ -27,6 +27,29 @@ router.get('/', async (req, res, next) => {
       ORDER BY so.due_date ASC
     `);
 
+    // Scheduled plans that work as reminders and still have no occurrences
+    const reminders = await db.query(`
+      SELECT
+        sp.id,
+        sp.title,
+        sp.start_date,
+        sp.base_amount,
+        sp.total_installments,
+        e.name as entity_name,
+        c.name as category_name,
+        tl.name as till_name
+      FROM scheduled_plans sp
+      LEFT JOIN entities e ON sp.entity_id = e.id
+      LEFT JOIN categories c ON sp.category_id = c.id
+      LEFT JOIN tills tl ON sp.till_id = tl.id
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM scheduled_occurrences so
+        WHERE so.plan_id = sp.id
+      )
+      ORDER BY sp.start_date ASC, sp.id ASC
+    `);
+
     // Calculate liquidity forecast (180 days)
     const today = new Date();
     const forecastDays = [];
@@ -66,11 +89,16 @@ router.get('/', async (req, res, next) => {
         ...row,
         amount: parseFloat(row.amount),
       })),
+      reminders: reminders.rows.map(row => ({
+        ...row,
+        base_amount: row.base_amount === null ? null : parseFloat(row.base_amount),
+      })),
       forecast: forecastWithCumulative,
       summary: {
         total_amount: occurrences.rows.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0),
         pending_count: occurrences.rows.filter(o => o.status === 'pending').length,
         overdue_count: occurrences.rows.filter(o => o.status === 'overdue').length,
+        reminders_count: reminders.rows.length,
       },
     });
   } catch (error) {
