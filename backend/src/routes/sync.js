@@ -7,9 +7,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Deletion and insertion order for atomic transactions
 const DELETE_ORDER = [
+  'credit_card_payment_items',
+  'scheduled_payments_mapping',
   'scheduled_occurrences',
   'scheduled_plans',
   'transactions',
+  'credit_cards',
   'entities',
   'categories',
   'tills',
@@ -21,9 +24,12 @@ const INSERT_ORDER = [
   'tills',
   'categories',
   'entities',
+  'credit_cards',
   'transactions',
   'scheduled_plans',
   'scheduled_occurrences',
+  'credit_card_payment_items',
+  'scheduled_payments_mapping',
 ];
 
 const TABLE_COLUMNS = {
@@ -39,6 +45,7 @@ const TABLE_COLUMNS = {
   tills: ['id', 'name', 'account_number', 'is_bank'],
   categories: ['id', 'name', 'type'],
   entities: ['id', 'name', 'type', 'contact'],
+  credit_cards: ['id', 'till_id', 'name', 'credit_limit'],
   transactions: [
     'id',
     'till_id',
@@ -48,6 +55,10 @@ const TABLE_COLUMNS = {
     'transfer_id',
     'transaction_date',
     'category_id',
+    'payment_method',
+    'credit_card_id',
+    'affects_balance',
+    'parent_transaction_id',
   ],
   scheduled_plans: [
     'id',
@@ -58,6 +69,7 @@ const TABLE_COLUMNS = {
     'base_amount',
     'total_installments',
     'start_date',
+    'type',
   ],
   scheduled_occurrences: [
     'id',
@@ -66,8 +78,23 @@ const TABLE_COLUMNS = {
     'due_date',
     'type',
     'amount',
+    'remaining_amount',
     'status',
     'transaction_id',
+  ],
+  credit_card_payment_items: [
+    'id',
+    'credit_card_id',
+    'purchase_transaction_id',
+    'payment_transaction_id',
+    'amount_paid',
+  ],
+  scheduled_payments_mapping: [
+    'id',
+    'occurrence_id',
+    'transaction_id',
+    'amount_paid',
+    'payment_date',
   ],
 };
 
@@ -184,9 +211,12 @@ router.post('/import', upload.single('file'), async (req, res, next) => {
       'tills',
       'categories',
       'entities',
+      'credit_cards',
       'transactions',
       'scheduled_plans',
       'scheduled_occurrences',
+      'credit_card_payment_items',
+      'scheduled_payments_mapping',
     ];
 
     for (const tableName of AUTOINCREMENT_TABLES) {
