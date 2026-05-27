@@ -16,6 +16,7 @@
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: "📊" },
     { label: "Transactions", href: "/transactions", icon: "💳" },
+    { label: "Credit Cards", href: "/credit-cards", icon: "🏦" },
     { label: "Entity Monitor", href: "/entities", icon: "🏢" },
     { label: "Commitments", href: "/projections", icon: "📅" },
     { label: "Data Sync", href: "/sync", icon: "⚡" },
