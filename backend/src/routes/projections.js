@@ -17,6 +17,7 @@ router.get('/', async (req, res, next) => {
         so.plan_id,
         so.due_date,
         so.amount,
+        so.remaining_amount,
         so.status,
         sp.title,
         sp.total_installments,
@@ -51,6 +52,7 @@ router.get('/', async (req, res, next) => {
     `);
 
     // Calculate liquidity forecast (180 days)
+    // For partially_paid occurrences, use remaining_amount instead of amount
     const today = new Date();
     const forecastDays = [];
 
@@ -64,7 +66,12 @@ router.get('/', async (req, res, next) => {
       );
 
       const dailyAmount = dayOccurrences.reduce((sum, o) => {
-        return sum + (parseFloat(o.amount) || 0);
+        // Partially paid: use remaining_amount so forecast reflects what's actually owed
+        const owed =
+          o.status === 'partially_paid' && o.remaining_amount != null
+            ? parseFloat(o.remaining_amount)
+            : parseFloat(o.amount) || 0;
+        return sum + owed;
       }, 0);
 
       forecastDays.push({
@@ -88,6 +95,7 @@ router.get('/', async (req, res, next) => {
       occurrences: occurrences.rows.map(row => ({
         ...row,
         amount: parseFloat(row.amount),
+        remaining_amount: row.remaining_amount != null ? parseFloat(row.remaining_amount) : null,
       })),
       reminders: reminders.rows.map(row => ({
         ...row,
@@ -97,6 +105,7 @@ router.get('/', async (req, res, next) => {
       summary: {
         total_amount: occurrences.rows.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0),
         pending_count: occurrences.rows.filter(o => o.status === 'pending').length,
+        partially_paid_count: occurrences.rows.filter(o => o.status === 'partially_paid').length,
         overdue_count: occurrences.rows.filter(o => o.status === 'overdue').length,
         reminders_count: reminders.rows.length,
       },

@@ -43,6 +43,10 @@ export const TransactionsRowSchema = z.object({
   transfer_id: nullableString.optional(),
   transaction_date: nullableString.optional(),
   category_id: nullableNumber.optional(),
+  payment_method: nullableString.optional(),
+  credit_card_id: nullableNumber.optional(),
+  affects_balance: nullableNumber.optional(),
+  parent_transaction_id: nullableNumber.optional(),
 }).strict();
 
 export const ScheduledPlansRowSchema = z.object({
@@ -54,6 +58,7 @@ export const ScheduledPlansRowSchema = z.object({
   base_amount: nullableNumber.optional(),
   total_installments: nullableNumber.optional(),
   start_date: nullableString.optional(),
+  type: nullableString.optional(),
 }).strict();
 
 export const ScheduledOccurrencesRowSchema = z.object({
@@ -63,8 +68,32 @@ export const ScheduledOccurrencesRowSchema = z.object({
   due_date: nullableString.optional(),
   type: nullableString.optional(),
   amount: nullableNumber.optional(),
+  remaining_amount: nullableNumber.optional(),
   status: nullableString.optional(),
   transaction_id: nullableNumber.optional(),
+}).strict();
+
+export const CreditCardsRowSchema = z.object({
+  id: z.number(),
+  till_id: z.number(),
+  name: z.string(),
+  credit_limit: nullableNumber.optional(),
+}).strict();
+
+export const CreditCardPaymentItemsRowSchema = z.object({
+  id: z.number(),
+  credit_card_id: z.number(),
+  purchase_transaction_id: z.number(),
+  payment_transaction_id: z.number(),
+  amount_paid: nullableNumber.optional(),
+}).strict();
+
+export const ScheduledPaymentsMappingRowSchema = z.object({
+  id: z.number(),
+  occurrence_id: z.number(),
+  transaction_id: z.number(),
+  amount_paid: nullableNumber.optional(),
+  payment_date: nullableString.optional(),
 }).strict();
 
 export const BackupTablesSchema = z.object({
@@ -72,10 +101,13 @@ export const BackupTablesSchema = z.object({
   tills: z.array(TillsRowSchema).optional(),
   categories: z.array(CategoriesRowSchema).optional(),
   entities: z.array(EntitiesRowSchema).optional(),
+  credit_cards: z.array(CreditCardsRowSchema).optional(),
   transactions: z.array(TransactionsRowSchema).optional(),
   scheduled_plans: z.array(ScheduledPlansRowSchema).optional(),
   scheduled_occurrences: z.array(ScheduledOccurrencesRowSchema).optional(),
-}).strict();
+  credit_card_payment_items: z.array(CreditCardPaymentItemsRowSchema).optional(),
+  scheduled_payments_mapping: z.array(ScheduledPaymentsMappingRowSchema).optional(),
+}).passthrough();
 
 export const EncryptedBackupEnvelopeSchema = z.object({
   version: z.literal(1),
