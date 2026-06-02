@@ -131,7 +131,7 @@
 
 <div class="p-8 space-y-6">
   <div>
-    <h1 class="text-4xl font-bold">Transactions</h1>
+    <h1 class="text-4xl font-bold">Transacciones</h1>
     <p class="text-brand-surface-2 mt-2">
       Listado paginado con filtros por tipo, categoría y caja
     </p>

@@ -21,8 +21,8 @@
 <div class="p-8 space-y-6">
   <!-- Header -->
   <div>
-    <h1 class="text-4xl font-bold">Dashboard</h1>
-    <p class="text-brand-surface-2 mt-2">Your financial overview at a glance</p>
+    <h1 class="text-4xl font-bold">Panel</h1>
+    <p class="text-brand-surface-2 mt-2">Tu resumen financiero de un vistazo</p>
   </div>
 
   {#if error}
@@ -35,7 +35,7 @@
 
   {#if loading}
     <div class="text-center py-12">
-      <p class="text-brand-surface-2">Loading dashboard data...</p>
+      <p class="text-brand-surface-2">Cargando datos del panel...</p>
     </div>
   {:else if summary}
     <!-- KPI Cards -->
@@ -43,7 +43,7 @@
       <!-- Total Balance -->
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Total Balance
+          Saldo total
         </div>
         <div class="text-4xl font-bold text-brand-emerald">
           {formatCurrency(summary.totalBalance)}
@@ -53,7 +53,7 @@
       <!-- Available Cash -->
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Available Cash
+          Efectivo disponible
         </div>
         <div class="text-4xl font-bold text-brand-cyan">
           {formatCurrency(summary.availableCash || 0)}
@@ -63,7 +63,7 @@
       <!-- Spending This Month -->
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Upcoming Commitments
+          Compromisos proximos
         </div>
         <div class="text-3xl font-bold text-brand-rose">
           {summary.upcomingCommitments.length}
@@ -81,7 +81,7 @@
       <!-- Categories -->
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Expense Categories
+          Categorias de egreso
         </div>
         <div class="text-3xl font-bold text-brand-cyan">
           {summary.byCategory.length}
@@ -91,7 +91,7 @@
       <!-- Income Categories -->
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Income Categories
+          Categorias de ingreso
         </div>
         <div class="text-3xl font-bold text-brand-emerald">
           {(summary.incomeByCategory || []).length}
@@ -103,7 +103,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- Spending by Category -->
       <div class="card">
-        <h2 class="text-xl font-bold mb-4">Top Expense Categories</h2>
+        <h2 class="text-xl font-bold mb-4">Principales categorias de egreso</h2>
         <div class="space-y-3">
           {#each summary.byCategory.slice(0, 8) as category (category.name)}
             <div>
@@ -130,7 +130,9 @@
 
       <!-- Income by Category -->
       <div class="card">
-        <h2 class="text-xl font-bold mb-4">Top Income Categories</h2>
+        <h2 class="text-xl font-bold mb-4">
+          Principales categorias de ingreso
+        </h2>
         <div class="space-y-3">
           {#each (summary.incomeByCategory || []).slice(0, 8) as category (category.name)}
             <div>
@@ -160,7 +162,7 @@
     <!-- Commitments -->
     <div class="grid grid-cols-1 gap-6">
       <div class="card">
-        <h2 class="text-xl font-bold mb-4">Next Payments</h2>
+        <h2 class="text-xl font-bold mb-4">Proximos pagos</h2>
         <div class="space-y-3">
           {#each summary.upcomingCommitments.slice(0, 5) as commitment (commitment.id)}
             <div class="border-l-2 border-brand-cyan pl-3 py-1">
@@ -221,15 +223,15 @@
 
     <!-- Recent Transactions -->
     <div class="card">
-      <h2 class="text-xl font-bold mb-4">Recent Transactions</h2>
+      <h2 class="text-xl font-bold mb-4">Transacciones recientes</h2>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="border-b border-brand-surface-2">
             <tr>
-              <th class="text-left py-2 px-3">Description</th>
-              <th class="text-left py-2 px-3">Category</th>
-              <th class="text-right py-2 px-3">Amount</th>
-              <th class="text-left py-2 px-3">Date</th>
+              <th class="text-left py-2 px-3">Descripcion</th>
+              <th class="text-left py-2 px-3">Categoria</th>
+              <th class="text-right py-2 px-3">Monto</th>
+              <th class="text-left py-2 px-3">Fecha</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-brand-surface-2">

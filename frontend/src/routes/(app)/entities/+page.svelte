@@ -39,9 +39,9 @@
 
 <div class="p-8 space-y-6">
   <div>
-    <h1 class="text-4xl font-bold">Entity Monitor</h1>
+    <h1 class="text-4xl font-bold">Monitor de entidades</h1>
     <p class="text-brand-surface-2 mt-2">
-      Track clients and providers transactions
+      Seguimiento de transacciones de clientes y proveedores
     </p>
   </div>
 
@@ -55,13 +55,13 @@
 
   {#if loading}
     <div class="text-center py-12">
-      <p class="text-brand-surface-2">Loading entities...</p>
+      <p class="text-brand-surface-2">Cargando entidades...</p>
     </div>
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Entities List -->
       <div class="card lg:col-span-1">
-        <h2 class="text-lg font-bold mb-4">Entities</h2>
+        <h2 class="text-lg font-bold mb-4">Entidades</h2>
         <div class="space-y-2 max-h-96 overflow-y-auto">
           {#each entities as entity (entity.id)}
             <button
@@ -101,10 +101,10 @@
 
             <!-- Transactions -->
             <div class="card">
-              <h3 class="text-lg font-bold mb-4">Recent Transactions</h3>
+              <h3 class="text-lg font-bold mb-4">Transacciones recientes</h3>
               {#if detailsLoading}
                 <div class="text-center py-8 text-brand-surface-2">
-                  Loading entity ledger...
+                  Cargando libro mayor de la entidad...
                 </div>
               {:else if detailsError}
                 <div
@@ -115,17 +115,17 @@
               {:else if selectedEntityLedger}
                 {#if selectedEntityLedger.transactions.length === 0}
                   <div class="text-center py-8 text-brand-surface-2">
-                    No transactions linked to this entity yet.
+                    Todavia no hay transacciones vinculadas a esta entidad.
                   </div>
                 {:else}
                   <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                       <thead class="border-b border-brand-surface-2">
                         <tr>
-                          <th class="text-left py-2 px-3">Description</th>
-                          <th class="text-left py-2 px-3">Category</th>
-                          <th class="text-right py-2 px-3">Amount</th>
-                          <th class="text-left py-2 px-3">Date</th>
+                          <th class="text-left py-2 px-3">Descripcion</th>
+                          <th class="text-left py-2 px-3">Categoria</th>
+                          <th class="text-right py-2 px-3">Monto</th>
+                          <th class="text-left py-2 px-3">Fecha</th>
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-brand-surface-2">
@@ -164,12 +164,12 @@
             <!-- Reminder Plans -->
             <div class="card">
               <h3 class="text-lg font-bold mb-4">
-                Reminder Plans (No Occurrences)
+                Planes de recordatorio (sin ocurrencias)
               </h3>
 
               {#if detailsLoading}
                 <div class="text-center py-8 text-brand-surface-2">
-                  Loading reminder plans...
+                  Cargando planes de recordatorio...
                 </div>
               {:else if detailsError}
                 <div
@@ -180,18 +180,18 @@
               {:else if selectedEntityLedger}
                 {#if selectedEntityLedger.reminders.length === 0}
                   <div class="text-center py-8 text-brand-surface-2">
-                    No reminder plans for this entity.
+                    No hay planes de recordatorio para esta entidad.
                   </div>
                 {:else}
                   <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                       <thead class="border-b border-brand-surface-2">
                         <tr>
-                          <th class="text-left py-2 px-3">Title</th>
-                          <th class="text-left py-2 px-3">Category</th>
-                          <th class="text-left py-2 px-3">Till</th>
-                          <th class="text-right py-2 px-3">Base Amount</th>
-                          <th class="text-left py-2 px-3">Start Date</th>
+                          <th class="text-left py-2 px-3">Titulo</th>
+                          <th class="text-left py-2 px-3">Categoria</th>
+                          <th class="text-left py-2 px-3">Caja</th>
+                          <th class="text-right py-2 px-3">Monto base</th>
+                          <th class="text-left py-2 px-3">Fecha de inicio</th>
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-brand-surface-2">
@@ -227,7 +227,9 @@
           </div>
         {:else}
           <div class="card text-center py-12">
-            <p class="text-brand-surface-2">Select an entity to view details</p>
+            <p class="text-brand-surface-2">
+              Selecciona una entidad para ver detalles
+            </p>
           </div>
         {/if}
       </div>

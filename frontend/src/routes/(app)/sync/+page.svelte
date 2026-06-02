@@ -1,45 +1,45 @@
 <script>
-  import { apiPostMultipart, apiGet } from '$lib/api';
-  import { syncStore } from '$lib/stores';
+  import { apiPostMultipart, apiGet } from "$lib/api";
+  import { syncStore } from "$lib/stores";
 
   let file = null;
-  let password = '';
+  let password = "";
   let uploadInProgress = false;
 
   async function handleSync() {
     if (!file || !password) {
-      $syncStore.error = 'File and password are required';
+      $syncStore.error = "El archivo y la contrasena son obligatorios";
       return;
     }
 
     uploadInProgress = true;
-    syncStore.update(s => ({
+    syncStore.update((s) => ({
       ...s,
       isSyncing: true,
       progress: 0,
-      logs: ['Starting backup import...'],
+      logs: ["Iniciando importacion del respaldo..."],
       error: null,
     }));
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('password', password);
+      formData.append("file", file);
+      formData.append("password", password);
 
-      syncStore.update(s => ({
+      syncStore.update((s) => ({
         ...s,
-        logs: [...s.logs, '📤 Uploading encrypted backup...'],
+        logs: [...s.logs, "📤 Subiendo respaldo encriptado..."],
       }));
 
-      const result = await apiPostMultipart('/sync/import', formData);
+      const result = await apiPostMultipart("/sync/import", formData);
 
-      syncStore.update(s => ({
+      syncStore.update((s) => ({
         ...s,
         logs: [
           ...s.logs,
-          '✓ Upload successful',
-          `✓ ${Object.values(result.rowCountByTable || {}).reduce((a, b) => a + b, 0)} rows imported`,
-          '✓ Backup imported successfully!',
+          "✓ Carga completada",
+          `✓ ${Object.values(result.rowCountByTable || {}).reduce((a, b) => a + b, 0)} filas importadas`,
+          "✓ Respaldo importado correctamente",
         ],
         progress: 100,
       }));
@@ -47,12 +47,12 @@
       // Reset form after 2 seconds
       setTimeout(() => {
         file = null;
-        password = '';
+        password = "";
         uploadInProgress = false;
-        syncStore.update(s => ({ ...s, isSyncing: false }));
+        syncStore.update((s) => ({ ...s, isSyncing: false }));
       }, 2000);
     } catch (error) {
-      syncStore.update(s => ({
+      syncStore.update((s) => ({
         ...s,
         logs: [...s.logs, `✗ Error: ${error.message}`],
         error: error.message,
@@ -64,20 +64,22 @@
 
 <div class="p-8 space-y-6">
   <div>
-    <h1 class="text-4xl font-bold">Data Synchronization</h1>
-    <p class="text-brand-surface-2 mt-2">Import your encrypted backup from the mobile app</p>
+    <h1 class="text-4xl font-bold">Sincronizacion de datos</h1>
+    <p class="text-brand-surface-2 mt-2">
+      Importa tu respaldo encriptado desde la app movil
+    </p>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Import Section -->
     <div class="lg:col-span-2 card">
-      <h2 class="text-xl font-bold mb-6">Import Encrypted Backup</h2>
+      <h2 class="text-xl font-bold mb-6">Importar respaldo encriptado</h2>
 
       <div class="space-y-4">
         <!-- File Input -->
         <div>
           <label class="block text-sm font-medium mb-2" for="file">
-            Select .nbb File
+            Seleccionar archivo .nbb
           </label>
           <input
             type="file"
@@ -95,14 +97,14 @@
         <!-- Password Input -->
         <div>
           <label class="block text-sm font-medium mb-2" for="password">
-            Backup Password
+            Contrasena del respaldo
           </label>
           <input
             type="password"
             id="password"
             bind:value={password}
             disabled={uploadInProgress}
-            placeholder="Enter the password used to create the backup"
+            placeholder="Ingresa la contrasena usada para crear el respaldo"
             class="input-field"
           />
         </div>
@@ -113,43 +115,49 @@
           disabled={!file || !password || uploadInProgress}
           class="button-primary w-full"
         >
-          {uploadInProgress ? 'Importing...' : 'Start Synchronization'}
+          {uploadInProgress ? "Importando..." : "Iniciar sincronizacion"}
         </button>
       </div>
 
       <!-- Info -->
-      <div class="mt-6 p-4 bg-brand-surface-2 rounded text-sm text-brand-surface-2">
+      <div
+        class="mt-6 p-4 bg-brand-surface-2 rounded text-sm text-brand-surface-2"
+      >
         <p class="mb-2">
-          <strong>How to export from the mobile app:</strong>
+          <strong>Como exportar desde la app movil:</strong>
         </p>
         <ol class="list-decimal list-inside space-y-1 text-xs">
-          <li>Open Settings → Data Export</li>
-          <li>Choose "Encrypted Backup (.nbb)"</li>
-          <li>Set a strong password</li>
-          <li>Share or download the .nbb file</li>
-          <li>Use the password here to import</li>
+          <li>Abre Configuracion → Exportacion de datos</li>
+          <li>Elige "Respaldo encriptado (.nbb)"</li>
+          <li>Define una contrasena segura</li>
+          <li>Comparte o descarga el archivo .nbb</li>
+          <li>Usa aqui la contrasena para importar</li>
         </ol>
       </div>
     </div>
 
     <!-- Status Panel -->
     <div class="card">
-      <h2 class="text-xl font-bold mb-4">Import Status</h2>
+      <h2 class="text-xl font-bold mb-4">Estado de importacion</h2>
 
       {#if $syncStore.logs.length > 0}
-        <div class="bg-brand-surface-2 rounded p-4 font-mono text-xs max-h-96 overflow-y-auto space-y-1">
+        <div
+          class="bg-brand-surface-2 rounded p-4 font-mono text-xs max-h-96 overflow-y-auto space-y-1"
+        >
           {#each $syncStore.logs as log}
             <div class="text-brand-cyan">{log}</div>
           {/each}
         </div>
       {:else}
         <div class="text-center py-8 text-brand-surface-2">
-          <p>Waiting for backup upload...</p>
+          <p>Esperando carga del respaldo...</p>
         </div>
       {/if}
 
       {#if $syncStore.error}
-        <div class="mt-4 p-3 bg-brand-rose/20 border border-brand-rose rounded text-brand-rose text-sm">
+        <div
+          class="mt-4 p-3 bg-brand-rose/20 border border-brand-rose rounded text-brand-rose text-sm"
+        >
           {$syncStore.error}
         </div>
       {/if}

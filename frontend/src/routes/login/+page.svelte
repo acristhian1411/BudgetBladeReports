@@ -1,16 +1,16 @@
 <script>
-  import { goto } from '$app/navigation';
-  import { authStore } from '$lib/stores';
-  import { login, getCurrentUser } from '$lib/api';
+  import { goto } from "$app/navigation";
+  import { authStore } from "$lib/stores";
+  import { login, getCurrentUser } from "$lib/api";
 
-  let email = '';
-  let password = '';
-  let error = '';
+  let email = "";
+  let password = "";
+  let error = "";
   let loading = false;
 
   async function handleLogin() {
     loading = true;
-    error = '';
+    error = "";
 
     try {
       const data = await login(email, password);
@@ -19,8 +19,8 @@
 
       const meData = await getCurrentUser();
       authStore.setToken(data.access_token, meData.user);
-      
-      await goto('/dashboard');
+
+      await goto("/dashboard");
     } catch (err) {
       error = err.message;
     } finally {
@@ -31,16 +31,22 @@
 
 <div class="flex items-center justify-center min-h-screen bg-brand-deep p-4">
   <div class="w-full max-w-md">
-    <div class="bg-brand-surface-1 rounded-lg border border-brand-surface-2 shadow-xl p-8">
+    <div
+      class="bg-brand-surface-1 rounded-lg border border-brand-surface-2 shadow-xl p-8"
+    >
       <!-- Logo -->
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-brand-cyan">Budget Blade</h1>
-        <p class="text-sm text-brand-surface-2 mt-2">Financial Reports Dashboard</p>
+        <p class="text-sm text-brand-surface-2 mt-2">
+          Panel de reportes financieros
+        </p>
       </div>
 
       <!-- Error Message -->
       {#if error}
-        <div class="mb-4 p-4 bg-brand-rose/20 border border-brand-rose rounded text-brand-rose text-sm">
+        <div
+          class="mb-4 p-4 bg-brand-rose/20 border border-brand-rose rounded text-brand-rose text-sm"
+        >
           {error}
         </div>
       {/if}
@@ -49,7 +55,7 @@
       <form on:submit|preventDefault={handleLogin} class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-white mb-2" for="email">
-            Email
+            Correo
           </label>
           <input
             type="email"
@@ -57,14 +63,17 @@
             bind:value={email}
             disabled={loading}
             class="input-field"
-            placeholder="your@email.com"
+            placeholder="tu@email.com"
             required
           />
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-white mb-2" for="password">
-            Password
+          <label
+            class="block text-sm font-medium text-white mb-2"
+            for="password"
+          >
+            Contrasena
           </label>
           <input
             type="password"
@@ -82,13 +91,13 @@
           disabled={loading || !email || !password}
           class="button-primary w-full"
         >
-          {loading ? 'Signing in...' : 'Sign In'}
+          {loading ? "Iniciando sesion..." : "Iniciar sesion"}
         </button>
       </form>
 
       <!-- Help Text -->
       <p class="text-xs text-brand-surface-2 mt-6 text-center">
-        Sign in with your Budget Blade credentials from the mobile app
+        Inicia sesion con tus credenciales de Budget Blade desde la app movil
       </p>
     </div>
   </div>

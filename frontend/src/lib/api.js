@@ -35,7 +35,7 @@ async function fetchWithAuth(url, options = {}) {
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    const error = await response.json().catch(() => ({ error: 'Error desconocido' }));
     throw new Error(error.error || `HTTP ${response.status}`);
   }
 
@@ -83,7 +83,7 @@ export async function apiPostMultipart(path, formData) {
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    const error = await response.json().catch(() => ({ error: 'Error desconocido' }));
     throw new Error(error.error || `HTTP ${response.status}`);
   }
 
@@ -101,8 +101,8 @@ export async function login(email, password) {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Login failed' }));
-    throw new Error(error.error || 'Login failed');
+    const error = await response.json().catch(() => ({ error: 'Error de inicio de sesion' }));
+    throw new Error(error.error || 'Error de inicio de sesion');
   }
 
   return response.json();

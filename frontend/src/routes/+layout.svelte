@@ -14,12 +14,12 @@
   $: shouldShowLayout = isAuthenticated && !isLoginPage;
 
   const navItems = [
-    { label: "Dashboard", href: "/dashboard", icon: "📊" },
-    { label: "Transactions", href: "/transactions", icon: "💳" },
-    { label: "Credit Cards", href: "/credit-cards", icon: "🏦" },
-    { label: "Entity Monitor", href: "/entities", icon: "🏢" },
-    { label: "Commitments", href: "/projections", icon: "📅" },
-    { label: "Data Sync", href: "/sync", icon: "⚡" },
+    { label: "Panel", href: "/dashboard", icon: "📊" },
+    { label: "Transacciones", href: "/transactions", icon: "💳" },
+    { label: "Tarjetas de credito", href: "/credit-cards", icon: "🏦" },
+    { label: "Entidades", href: "/entities", icon: "🏢" },
+    { label: "Compromisos", href: "/projections", icon: "📅" },
+    { label: "Sincronizacion", href: "/sync", icon: "⚡" },
   ];
 
   async function refreshSession() {
@@ -37,7 +37,7 @@
       const meData = await getCurrentUser();
       authStore.setToken(token, meData.user);
     } catch (err) {
-      console.error("Failed to verify session:", err);
+      console.error("No se pudo verificar la sesion:", err);
       authStore.logout();
     } finally {
       checkingSession = false;
@@ -62,7 +62,7 @@
       <div
         class="animate-spin rounded-full h-10 w-10 border-t-2 border-brand-cyan"
       ></div>
-      <p class="text-sm text-brand-cyan">Verifying session...</p>
+      <p class="text-sm text-brand-cyan">Verificando sesion...</p>
     </div>
   </div>
 {:else if shouldShowLayout}
@@ -74,7 +74,7 @@
       <!-- Logo -->
       <div class="p-6 border-b border-brand-surface-2">
         <h1 class="text-2xl font-bold text-brand-cyan">Budget Blade</h1>
-        <p class="text-xs text-brand-surface-2 mt-1">Reports Portal</p>
+        <p class="text-xs text-brand-surface-2 mt-1">Portal de reportes</p>
       </div>
 
       <!-- Navigation -->
@@ -102,7 +102,7 @@
           on:click={handleLogout}
           class="w-full px-3 py-2 bg-brand-rose text-white rounded text-sm font-semibold hover:opacity-90 transition-opacity"
         >
-          Logout
+          Cerrar sesion
         </button>
       </div>
     </aside>

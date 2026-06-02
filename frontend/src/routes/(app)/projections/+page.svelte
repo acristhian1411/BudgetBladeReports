@@ -20,9 +20,9 @@
 
 <div class="p-8 space-y-6">
   <div>
-    <h1 class="text-4xl font-bold">Commitment Projection</h1>
+    <h1 class="text-4xl font-bold">Proyeccion de compromisos</h1>
     <p class="text-brand-surface-2 mt-2">
-      Visualize your financial commitments and liquidity forecast
+      Visualiza tus compromisos financieros y el pronostico de liquidez
     </p>
   </div>
 
@@ -36,14 +36,14 @@
 
   {#if loading}
     <div class="text-center py-12">
-      <p class="text-brand-surface-2">Loading projections...</p>
+      <p class="text-brand-surface-2">Cargando proyecciones...</p>
     </div>
   {:else if projections}
     <!-- Summary KPIs -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Total Commitments
+          Compromisos totales
         </div>
         <div class="text-3xl font-bold text-brand-cyan">
           {formatCurrency(projections.summary.total_amount)}
@@ -52,7 +52,7 @@
 
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Pending
+          Pendientes
         </div>
         <div class="text-3xl font-bold text-brand-rose">
           {projections.summary.pending_count}
@@ -61,7 +61,7 @@
 
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Overdue
+          Vencidos
         </div>
         <div class="text-3xl font-bold text-brand-rose">
           {projections.summary.overdue_count}
@@ -70,7 +70,7 @@
 
       <div class="card">
         <div class="text-sm text-brand-surface-2 mb-2 uppercase tracking-wider">
-          Reminders (No Occurrences)
+          Recordatorios (sin ocurrencias)
         </div>
         <div class="text-3xl font-bold text-brand-cyan">
           {projections.summary.reminders_count || 0}
@@ -80,16 +80,16 @@
 
     <!-- Upcoming Commitments Table -->
     <div class="card">
-      <h2 class="text-xl font-bold mb-4">Scheduled Commitments</h2>
+      <h2 class="text-xl font-bold mb-4">Compromisos programados</h2>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="border-b border-brand-surface-2">
             <tr>
-              <th class="text-left py-2 px-3">Title</th>
-              <th class="text-left py-2 px-3">Entity</th>
-              <th class="text-right py-2 px-3">Amount</th>
-              <th class="text-left py-2 px-3">Due Date</th>
-              <th class="text-left py-2 px-3">Status</th>
+              <th class="text-left py-2 px-3">Titulo</th>
+              <th class="text-left py-2 px-3">Entidad</th>
+              <th class="text-right py-2 px-3">Monto</th>
+              <th class="text-left py-2 px-3">Vencimiento</th>
+              <th class="text-left py-2 px-3">Estado</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-brand-surface-2">
@@ -118,7 +118,13 @@
                       ? 'bg-brand-rose/20 text-brand-rose'
                       : ''}"
                   >
-                    {occurrence.status}
+                    {occurrence.status === "processed"
+                      ? "Procesado"
+                      : occurrence.status === "pending"
+                        ? "Pendiente"
+                        : occurrence.status === "overdue"
+                          ? "Vencido"
+                          : occurrence.status}
                   </span>
                 </td>
               </tr>
@@ -129,23 +135,25 @@
     </div>
 
     <div class="card">
-      <h2 class="text-xl font-bold mb-4">Service Reminders (No Occurrences)</h2>
+      <h2 class="text-xl font-bold mb-4">
+        Recordatorios de servicios (sin ocurrencias)
+      </h2>
 
       {#if !projections.reminders || projections.reminders.length === 0}
         <div class="text-center py-8 text-brand-surface-2">
-          No reminder plans without occurrences.
+          No hay planes de recordatorio sin ocurrencias.
         </div>
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="border-b border-brand-surface-2">
               <tr>
-                <th class="text-left py-2 px-3">Title</th>
-                <th class="text-left py-2 px-3">Entity</th>
-                <th class="text-left py-2 px-3">Category</th>
-                <th class="text-left py-2 px-3">Till</th>
-                <th class="text-right py-2 px-3">Base Amount</th>
-                <th class="text-left py-2 px-3">Start Date</th>
+                <th class="text-left py-2 px-3">Titulo</th>
+                <th class="text-left py-2 px-3">Entidad</th>
+                <th class="text-left py-2 px-3">Categoria</th>
+                <th class="text-left py-2 px-3">Caja</th>
+                <th class="text-right py-2 px-3">Monto base</th>
+                <th class="text-left py-2 px-3">Fecha de inicio</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-brand-surface-2">
