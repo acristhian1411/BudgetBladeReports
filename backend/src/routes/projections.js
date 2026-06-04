@@ -42,6 +42,7 @@ router.get('/', async (req, res, next) => {
       FROM scheduled_occurrences so
       JOIN scheduled_plans sp ON so.plan_id = sp.id
       LEFT JOIN entities e ON sp.entity_id = e.id
+      where sp.type = 'egreso'
       ORDER BY so.due_date ASC
     `);
 
@@ -65,6 +66,7 @@ router.get('/', async (req, res, next) => {
         FROM scheduled_occurrences so
         WHERE so.plan_id = sp.id
       )
+      and sp.type = 'egreso'
       ORDER BY sp.start_date ASC, sp.id ASC
     `);
 
