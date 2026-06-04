@@ -10,6 +10,23 @@ router.get('/', async (req, res, next) => {
   try {
     const db = req.app.locals.db;
 
+    // Get current liquidity (sum of all till balances)
+    const liquidityResult = await db.query(`
+      SELECT COALESCE(SUM(
+        CASE 
+          WHEN t.type = 'ingreso' THEN t.amount
+          WHEN t.type = 'egreso' THEN -t.amount
+          WHEN t.type = 'transferencia' THEN t.amount
+          ELSE 0
+        END
+      ), 0) as total
+      FROM tills tl
+      LEFT JOIN transactions t
+        ON t.till_id = tl.id
+        AND COALESCE(t.affects_balance, 1) = 1
+    `);
+    const initialBalance = parseFloat(liquidityResult.rows[0]?.total || 0);
+
     // Get all scheduled occurrences
     const occurrences = await db.query(`
       SELECT 
@@ -81,14 +98,25 @@ router.get('/', async (req, res, next) => {
       });
     }
 
-    // Calculate cumulative balance
+    // Calculate cumulative balance and projected balance
     let cumulativeBalance = 0;
     const forecastWithCumulative = forecastDays.map((day) => {
       cumulativeBalance += day.amount;
       return {
         ...day,
         cumulativeBalance,
+        projected_balance: initialBalance - cumulativeBalance,
       };
+    });
+
+    // Find valley (minimum projected balance)
+    let valleyIndex = 0;
+    let minProjectedBalance = initialBalance;
+    forecastWithCumulative.forEach((day, idx) => {
+      if (day.projected_balance < minProjectedBalance) {
+        minProjectedBalance = day.projected_balance;
+        valleyIndex = idx;
+      }
     });
 
     res.json({
@@ -103,11 +131,15 @@ router.get('/', async (req, res, next) => {
       })),
       forecast: forecastWithCumulative,
       summary: {
+        initial_balance: initialBalance,
         total_amount: occurrences.rows.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0),
         pending_count: occurrences.rows.filter(o => o.status === 'pending').length,
         partially_paid_count: occurrences.rows.filter(o => o.status === 'partially_paid').length,
         overdue_count: occurrences.rows.filter(o => o.status === 'overdue').length,
         reminders_count: reminders.rows.length,
+        valley_date: forecastWithCumulative[valleyIndex]?.date || null,
+        valley_balance: minProjectedBalance,
+        valley_index: valleyIndex,
       },
     });
   } catch (error) {

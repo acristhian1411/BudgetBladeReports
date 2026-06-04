@@ -8,6 +8,7 @@ import dashboardRouter from './routes/dashboard.js';
 import entitiesRouter from './routes/entities.js';
 import transactionsRouter from './routes/transactions.js';
 import projectionsRouter from './routes/projections.js';
+import analysisRouter from './routes/analysis.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { migrateDatabase } from './db/migrate.js';
@@ -45,6 +46,7 @@ app.use('/api/dashboard', auth, dashboardRouter);
 app.use('/api/entities', auth, entitiesRouter);
 app.use('/api/transactions', auth, transactionsRouter);
 app.use('/api/projections', auth, projectionsRouter);
+app.use('/api/analysis', auth, analysisRouter);
 
 // 404 handler
 app.use((req, res) => {
