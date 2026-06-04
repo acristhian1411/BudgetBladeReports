@@ -25,6 +25,8 @@
   let selectedCategoryId = "";
   let selectedTillId = "";
   let selectedLimit = 20;
+  let selectedStartDate = "";
+  let selectedEndDate = "";
 
   let categoryOptions = [];
   let tillOptions = [];
@@ -42,6 +44,13 @@
         page: String(page),
         limit: String(selectedLimit),
       });
+
+      if (selectedStartDate) {
+        params.set("start_date", selectedStartDate);
+      }
+      if (selectedEndDate) {
+        params.set("end_date", selectedEndDate);
+      }
 
       if (selectedType) {
         params.set("type", selectedType);
@@ -172,6 +181,28 @@
             <option value={option.value}>{option.label}</option>
           {/each}
         </select>
+      </div>
+
+      <div>
+        <label class="block text-sm mb-2" for="start_date"
+          >Fecha de inicio</label
+        >
+        <input
+          id="start_date"
+          type="date"
+          bind:value={selectedStartDate}
+          class="input-field"
+        />
+      </div>
+
+      <div>
+        <label class="block text-sm mb-2" for="end_date">Fecha de fin</label>
+        <input
+          id="end_date"
+          type="date"
+          bind:value={selectedEndDate}
+          class="input-field"
+        />
       </div>
 
       <div>
