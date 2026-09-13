@@ -113,3 +113,39 @@ export async function getUserFromToken(token) {
   setCacheEntry(token, data);
   return data;
 }
+
+/**
+ * Extracts the OAuth scopes granted to a token from the user-info payload
+ * returned by the auth server.
+ *
+ * The auth server may expose scopes in several shapes (an array under
+ * `scopes`, a space-separated string under `scope`, or nested under
+ * `token.scopes`). This helper normalizes all of them to a string array.
+ *
+ * NOTE: Laravel's default `/api/user` does NOT include the token scopes. To
+ * enforce scopes, the auth app must return them (e.g. a custom `scopes`
+ * attribute on the user resource) or the API must introspect the token. If no
+ * scopes are present, an empty array is returned.
+ */
+export const extractScopes = (user) => {
+  if (!user || typeof user !== 'object') return [];
+
+  const candidates = [
+    user.scopes,
+    user.scope,
+    user.token?.scopes,
+    user.token?.scope,
+    user.oauth?.scopes,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.map(String).filter(Boolean);
+    }
+    if (typeof candidate === 'string') {
+      return candidate.split(/\s+/).filter(Boolean);
+    }
+  }
+
+  return [];
+};

@@ -3,10 +3,16 @@ import multer from 'multer';
 import { randomUUID } from 'node:crypto';
 import { decryptNBBBackup } from '../services/backup.js';
 import { applyChanges, getChangesSince } from '../services/sync.js';
+import { requireScope } from '../middleware/requireScope.js';
 import { DELETE_ORDER, INSERT_ORDER, TABLE_COLUMNS } from '../db/tables.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Sync scopes. Empty by default (scope enforcement disabled until the auth app
+// returns scopes on /api/user). Set these to enable scoped access control.
+const SYNC_READ_SCOPE = (process.env.AUTH_SYNC_READ_SCOPE || '').trim();
+const SYNC_WRITE_SCOPE = (process.env.AUTH_SYNC_WRITE_SCOPE || '').trim();
 
 const IMPORT_CLIENT_ERROR_PATTERNS = [
   /Invalid \.nbb/i,
@@ -27,7 +33,7 @@ const isClientImportError = (error) => {
  * Pulls incremental changes (all entities) since the given cursor.
  * `since=0` performs a full pull.
  */
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope(SYNC_READ_SCOPE), async (req, res, next) => {
   try {
     const db = req.app.locals.db;
     const { since } = req.query;
@@ -42,7 +48,7 @@ router.get('/', async (req, res, next) => {
  * POST /api/sync
  * Pushes a batch of create/update/delete operations (mobile outbox).
  */
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope(SYNC_WRITE_SCOPE), async (req, res, next) => {
   try {
     const db = req.app.locals.db;
     const result = await applyChanges(db, req.body ?? {});
