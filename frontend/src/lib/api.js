@@ -36,7 +36,9 @@ async function fetchWithAuth(url, options = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Error desconocido' }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    const err = new Error(error.error || `HTTP ${response.status}`);
+    err.status = response.status;
+    throw err;
   }
 
   return response.json();
@@ -57,6 +59,23 @@ export async function apiPost(path, body) {
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+/**
+ * PUT request
+ */
+export async function apiPut(path, body) {
+  return fetchWithAuth(path, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * DELETE request
+ */
+export async function apiDelete(path) {
+  return fetchWithAuth(path, { method: 'DELETE' });
 }
 
 /**

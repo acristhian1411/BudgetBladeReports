@@ -14,6 +14,8 @@ import entitiesRouter from './routes/entities.js';
 import transactionsRouter from './routes/transactions.js';
 import projectionsRouter from './routes/projections.js';
 import analysisRouter from './routes/analysis.js';
+import tillsRouter from './routes/tills.js';
+import categoriesRouter from './routes/categories.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { migrateDatabase } from './db/migrate.js';
@@ -67,6 +69,8 @@ app.use('/api/entities', auth, entitiesRouter);
 app.use('/api/transactions', auth, transactionsRouter);
 app.use('/api/projections', auth, projectionsRouter);
 app.use('/api/analysis', auth, analysisRouter);
+app.use('/api/tills', auth, tillsRouter);
+app.use('/api/categories', auth, categoriesRouter);
 
 // 404 handler
 app.use((req, res) => {
