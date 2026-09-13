@@ -1,7 +1,12 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { Pool } from 'pg';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
 import { authRouter } from './routes/auth.js';
 import syncRouter from './routes/sync.js';
 import dashboardRouter from './routes/dashboard.js';
@@ -34,6 +39,21 @@ app.locals.db = pool;
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Public API health check (used by the mobile onboarding "Probar conexión").
+// No auth required; verifies DB connectivity.
+app.get('/api/health', async (req, res) => {
+  const db = req.app.locals.db;
+  const timestamp = new Date().toISOString();
+  const base = { status: 'ok', version: pkg.version, timestamp };
+
+  try {
+    await db.query('SELECT 1');
+    res.json({ ...base, db: 'ok' });
+  } catch (error) {
+    res.status(503).json({ status: 'error', version: pkg.version, timestamp, db: 'error' });
+  }
 });
 
 // Initialize authentication middleware
@@ -72,30 +92,36 @@ const gracefulShutdown = async () => {
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
-// Startup
-(async () => {
-  try {
-    console.log('BudgetBladeReports Backend - Starting up...');
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+// Only start the server when this file is the entry point (not when imported
+// by tests), so tests can import the app and inject their own db pool.
+const isMainModule =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-    // Test database connection
-    const client = await pool.connect();
-    console.log('✓ Database connection established');
-    client.release();
+if (isMainModule) {
+  (async () => {
+    try {
+      console.log('BudgetBladeReports Backend - Starting up...');
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
-    // Run migrations
-    await migrateDatabase(pool);
+      // Test database connection
+      const client = await pool.connect();
+      console.log('✓ Database connection established');
+      client.release();
 
-    // Start server
-    app.listen(port, () => {
-      console.log(`\n✓ Server running on http://localhost:${port}`);
-      console.log(`✓ API available at http://localhost:${port}/api`);
-      console.log(`✓ Health check: http://localhost:${port}/health\n`);
-    });
-  } catch (error) {
-    console.error('✗ Failed to start server:', error.message);
-    process.exit(1);
-  }
-})();
+      // Run migrations
+      await migrateDatabase(pool);
+
+      // Start server
+      app.listen(port, () => {
+        console.log(`\n✓ Server running on http://localhost:${port}`);
+        console.log(`✓ API available at http://localhost:${port}/api`);
+        console.log(`✓ Health check: http://localhost:${port}/health\n`);
+      });
+    } catch (error) {
+      console.error('✗ Failed to start server:', error.message);
+      process.exit(1);
+    }
+  })();
+}
 
 export default app;
