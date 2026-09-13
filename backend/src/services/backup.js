@@ -1,7 +1,6 @@
 import {
   deriveKeyFromPassword,
   deriveKeyFromPasswordBytes,
-  decryptAES256GCM,
   decryptAES256GCMToBytes,
 } from './cryptography.js';
 import {

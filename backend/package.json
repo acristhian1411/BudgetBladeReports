@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "lint": "eslint src --fix",
+    "lint": "eslint src test test-utils",
     "test": "node --test --test-concurrency=1"
   },
   "dependencies": {
