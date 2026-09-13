@@ -114,15 +114,22 @@ router.get('/', async (req, res, next) => {
         so.amount,
         so.remaining_amount,
         so.status,
+        sp.id as plan_id,
         sp.title,
+        sp.type as plan_type,
+        sp.base_amount as plan_base_amount,
         e.name as entity_name
       FROM scheduled_occurrences so
       JOIN scheduled_plans sp ON so.plan_id = sp.id
       LEFT JOIN entities e ON sp.entity_id = e.id
-       WHERE so.due_date::date >= CURRENT_DATE 
-       and sp.type = 'egreso'
-      AND so.due_date::date <= CURRENT_DATE + INTERVAL '${horizonDays} days'
-        ${statusFilter}
+      WHERE (
+        -- Future occurrences within horizon
+        (so.due_date::date >= CURRENT_DATE AND so.due_date::date <= CURRENT_DATE + INTERVAL '${horizonDays} days')
+        OR
+        -- Past unpaid occurrences
+        (so.due_date::date < CURRENT_DATE AND so.status IN ('pending', 'partially_paid', 'overdue'))
+      )
+      ${statusFilter}
       ORDER BY so.due_date ASC
     `);
 
@@ -130,49 +137,74 @@ router.get('/', async (req, res, next) => {
       ...row,
       amount: parseFloat(row.amount),
       remaining_amount: row.remaining_amount != null ? parseFloat(row.remaining_amount) : null,
+      plan_base_amount: row.plan_base_amount != null ? parseFloat(row.plan_base_amount) : null,
     }));
 
     // 4. Build timeline projection (180 days)
     const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     const timeline = [];
-    let cumulativeCommitments = 0;
+    let cumulativeExpenses = 0;
+    let cumulativeIncomes = 0;
+
+    // Separate past unpaid occurrences
+    const pastUnpaid = commitments.filter(c => c.due_date < todayStr);
+    const futureCommitments = commitments.filter(c => c.due_date >= todayStr);
+
+    const getOwed = (c) =>
+      c.status === 'partially_paid' && c.remaining_amount != null
+        ? c.remaining_amount
+        : c.amount;
+
+    const pastUnpaidExpenses = pastUnpaid
+      .filter(c => c.plan_type === 'egreso')
+      .reduce((sum, c) => sum + getOwed(c), 0);
+
+    const pastUnpaidIncomes = pastUnpaid
+      .filter(c => c.plan_type === 'ingreso')
+      .reduce((sum, c) => sum + getOwed(c), 0);
 
     for (let i = 0; i <= 180; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() + i);
       const dateStr = date.toISOString().split('T')[0];
 
-      const dayCommitments = commitments.filter(c => c.due_date === dateStr);
-      const dayAmount = dayCommitments.reduce((sum, c) => {
-        const owed = c.status === 'partially_paid' && c.remaining_amount != null
-          ? c.remaining_amount
-          : c.amount;
-        return sum + owed;
-      }, 0);
+      const dayOccurrences = futureCommitments.filter(c => c.due_date === dateStr);
+      
+      let dayExpenses = dayOccurrences
+        .filter(c => c.plan_type === 'egreso')
+        .reduce((sum, c) => sum + getOwed(c), 0);
 
-      cumulativeCommitments += dayAmount;
-      const projectedBalance = liquidityImmediate - cumulativeCommitments;
+      let dayIncomes = dayOccurrences
+        .filter(c => c.plan_type === 'ingreso')
+        .reduce((sum, c) => sum + getOwed(c), 0);
+
+      // Accumulate past unpaid amounts on Day 0 (today)
+      if (i === 0) {
+        dayExpenses += pastUnpaidExpenses;
+        dayIncomes += pastUnpaidIncomes;
+      }
+
+      cumulativeExpenses += dayExpenses;
+      cumulativeIncomes += dayIncomes;
+      const projectedBalance = liquidityImmediate + cumulativeIncomes - cumulativeExpenses;
 
       timeline.push({
         date: dateStr,
         projected_balance: projectedBalance,
-        commitments_day: dayAmount,
-        count: dayCommitments.length,
-        net_flow: -dayAmount,
+        commitments_day: dayExpenses, // Keep this name for frontend compatibility (expenses)
+        incomes_day: dayIncomes,
+        count: dayOccurrences.length + (i === 0 ? pastUnpaid.length : 0),
+        net_flow: dayIncomes - dayExpenses,
       });
     }
 
     // 5. Calculate metrics
-    const getOwed = (c) =>
-      c.remaining_amount !== null && c.status === 'partially_paid'
-        ? c.remaining_amount
-        : c.amount;
-
     const getDaysFromNow = (c) =>
       Math.floor((new Date(c.due_date) - today) / (1000 * 60 * 60 * 24));
 
     const computeRangeBreakdown = (rangeFilter) => {
-      const items = commitments.filter(rangeFilter);
+      const items = commitments.filter(c => c.plan_type === 'egreso' && rangeFilter(c));
       return {
         total_amount: items.reduce((s, c) => s + getOwed(c), 0),
         pending_amount: items
@@ -187,11 +219,11 @@ router.get('/', async (req, res, next) => {
     };
 
     const shortTermCommitments = commitments
-      .filter(c => getDaysFromNow(c) <= 30)
+      .filter(c => c.plan_type === 'egreso' && getDaysFromNow(c) <= 30)
       .reduce((sum, c) => sum + getOwed(c), 0);
 
     const mediumTermCommitments = commitments
-      .filter(c => { const d = getDaysFromNow(c); return d > 30 && d <= 90; })
+      .filter(c => { const d = getDaysFromNow(c); return c.plan_type === 'egreso' && d > 30 && d <= 90; })
       .reduce((sum, c) => sum + getOwed(c), 0);
 
     const breakdown030  = computeRangeBreakdown(c => getDaysFromNow(c) <= 30);
@@ -199,9 +231,9 @@ router.get('/', async (req, res, next) => {
     const breakdown6190 = computeRangeBreakdown(c => { const d = getDaysFromNow(c); return d > 60 && d <= 90; });
 
     const overdueAmount = commitments
-      .filter(c => c.status === 'overdue')
+      .filter(c => c.plan_type === 'egreso' && c.status === 'overdue')
       .reduce((s, c) => s + getOwed(c), 0);
-    const overdueCount = commitments.filter(c => c.status === 'overdue').length;
+    const overdueCount = commitments.filter(c => c.plan_type === 'egreso' && c.status === 'overdue').length;
 
     // Find valley
     let valleyIndex = 0;
@@ -218,7 +250,8 @@ router.get('/', async (req, res, next) => {
 
     // Calculate runway (days without income)
     let runwayDays = 180;
-    const avgDailySpending = cumulativeCommitments / Math.max(1, 181);
+    const totalExpenses180 = timeline.reduce((sum, day) => sum + day.commitments_day, 0);
+    const avgDailySpending = totalExpenses180 / Math.max(1, 181);
     if (avgDailySpending > 0) {
       runwayDays = Math.floor(liquidityImmediate / avgDailySpending);
     }
@@ -240,6 +273,41 @@ router.get('/', async (req, res, next) => {
     } else if (runwayDays < 60 || valleyBalance < liquidityImmediate * 0.2) {
       riskLevel = 'medium';
     }
+
+    // Query Variable Commitments (Reminders of type egreso with base_amount = 0 and no occurrences in horizon)
+    const variablePlansResult = await db.query(`
+      SELECT 
+        sp.id, 
+        sp.title, 
+        sp.type as plan_type,
+        sp.base_amount,
+        COALESCE(
+          (
+            SELECT spm.amount_paid
+            FROM scheduled_payments_mapping spm
+            JOIN scheduled_occurrences so ON spm.occurrence_id = so.id
+            WHERE so.plan_id = sp.id
+            ORDER BY spm.payment_date DESC, spm.id DESC
+            LIMIT 1
+          ), 0
+        ) as last_payment_amount
+      FROM scheduled_plans sp
+      WHERE NOT EXISTS (
+        SELECT 1 
+        FROM scheduled_occurrences so 
+        WHERE so.plan_id = sp.id 
+          AND so.due_date::date >= CURRENT_DATE
+          AND so.due_date::date <= CURRENT_DATE + INTERVAL '${horizonDays} days'
+      )
+      AND sp.base_amount = 0
+      AND sp.type = 'egreso'
+    `);
+
+    const variableCommitments = variablePlansResult.rows.map(row => ({
+      ...row,
+      base_amount: parseFloat(row.base_amount),
+      last_payment_amount: parseFloat(row.last_payment_amount),
+    }));
 
     // 6. Build response
     res.json({
@@ -291,6 +359,7 @@ router.get('/', async (req, res, next) => {
           risk_color: 'yellow',
         },
       ],
+      variable_commitments: variableCommitments,
     });
   } catch (error) {
     next(error);

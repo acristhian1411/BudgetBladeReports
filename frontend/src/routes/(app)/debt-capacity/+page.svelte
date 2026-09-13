@@ -68,9 +68,9 @@
   }
 
   const STRESS_SCENARIOS = {
-    optimistic: { incomeMult: 1.0, delayDays: 0 },
-    conservative: { incomeMult: 0.8, delayDays: 0 },
-    pessimistic: { incomeMult: 0.6, delayDays: 15 },
+    optimistic: { incomeMult: 1.0, commitmentMult: 1.0, delayDays: 0 },
+    conservative: { incomeMult: 0.8, commitmentMult: 1.05, delayDays: 0 },
+    pessimistic: { incomeMult: 0.6, commitmentMult: 1.10, delayDays: 15 },
   };
 
   function buildScenarioSimulation(
@@ -87,10 +87,11 @@
     const income = Number(extraIncomeAmt) || 0;
     const hasDebt = total > 0 && cuotas > 0;
     const hasIncome = income > 0;
+    const hasStress = scenario !== "optimistic";
 
-    if (!timeline?.length || (!hasDebt && !hasIncome)) return null;
+    if (!timeline?.length || (!hasDebt && !hasIncome && !hasStress)) return null;
 
-    const { incomeMult, delayDays } =
+    const { incomeMult, commitmentMult, delayDays } =
       STRESS_SCENARIOS[scenario] ?? STRESS_SCENARIOS.conservative;
 
     // Build debt schedule: distribute installments over horizon
@@ -121,10 +122,21 @@
     // Project: base balance + cumulative income - cumulative debt
     let cumulativeDebt = 0;
     let cumulativeIncome = 0;
+    let cumulativeCommitments = 0;
+    let cumulativeIncomesBackend = 0;
+
+    const startingBalance = analysis?.summary?.liquidity_immediate ?? 0;
+
     const simulated = timeline.map((day, idx) => {
       cumulativeDebt += debtSchedule[idx];
       cumulativeIncome += incomeSchedule[idx];
-      return day.projected_balance + cumulativeIncome - cumulativeDebt;
+      cumulativeCommitments += day.commitments_day || 0;
+      cumulativeIncomesBackend += day.incomes_day || 0;
+
+      // Base balance adjusting existing commitments by stress multiplier
+      const baseBalance = startingBalance + cumulativeIncomesBackend - (cumulativeCommitments * commitmentMult);
+
+      return baseBalance + cumulativeIncome - cumulativeDebt;
     });
 
     const valleyBalance = Math.min(...simulated);
@@ -325,10 +337,6 @@
     await loadAnalysis();
   }
 
-  function applySimulation() {
-    renderChart();
-  }
-
   function computeSemaphore(simResult, floor) {
     if (!simResult) return null;
     const min = simResult.valleyBalance;
@@ -375,6 +383,17 @@
     (analysis?.summary?.liquidity_immediate ?? 0) * (safetyCushion / 100);
 
   $: semaphoreState = computeSemaphore(simulationResult, safetyFloor);
+
+  // Reactively render the chart when analysis or simulationResult changes
+  $: if (analysis || simulationResult) {
+    tick().then(renderChart);
+  }
+
+  // Reactive calculations for Fixed vs. Variable commitments
+  $: fixedTotal = analysis?.timeline?.reduce((sum, day) => sum + (day.commitments_day || 0), 0) ?? 0;
+  $: variableTotal = analysis?.variable_commitments?.reduce((sum, plan) => sum + (plan.last_payment_amount || 0), 0) ?? 0;
+  $: totalCommitments = fixedTotal + variableTotal;
+  $: recortablePct = totalCommitments > 0 ? (variableTotal / totalCommitments) * 100 : 0;
 </script>
 
 <div class="p-8 space-y-6">
@@ -609,15 +628,8 @@
             </div>
           </div>
 
-          <button
-            on:click={applySimulation}
-            class="mt-4 w-full px-4 py-2 bg-amber-400 text-brand-deep font-semibold rounded hover:opacity-90 transition-opacity"
-          >
-            Proyectar escenario en gráfico
-          </button>
-          <p class="text-xs text-brand-surface-2 mt-2">
-            El semáforo se actualiza en tiempo real. El gráfico se actualiza al
-            presionar el botón.
+          <p class="text-xs text-brand-surface-2 mt-3">
+            Tanto el gráfico como el semáforo se actualizan reactivamente en tiempo real al modificar los inputs.
           </p>
         </div>
       </div>
@@ -726,7 +738,7 @@
     </div>
 
     <!-- Risk & Summary Cards -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <!-- Risk Level -->
       <div class="card">
         <h3 class="text-lg font-bold mb-4">Nivel de Riesgo</h3>
@@ -786,6 +798,31 @@
                 analysis.summary.commitments_short_term,
             )}
           </div>
+        </div>
+      </div>
+
+      <!-- Fijos vs Variables summary card -->
+      <div class="card flex flex-col justify-between">
+        <div>
+          <h3 class="text-lg font-bold mb-4">Fijos vs. Variables</h3>
+          <div class="space-y-3">
+            <div class="flex justify-between text-sm">
+              <span class="text-brand-surface-2 font-semibold">Fijos</span>
+              <span class="font-bold text-white">{formatCurrency(fixedTotal)}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-brand-surface-2 font-semibold">Variables (Est.)</span>
+              <span class="font-bold text-brand-cyan">{formatCurrency(variableTotal)}</span>
+            </div>
+            <!-- Dual segment progress bar -->
+            <div class="w-full bg-brand-surface-2 h-3 rounded-full overflow-hidden flex mt-2">
+              <div class="bg-brand-rose h-full transition-all duration-300" style="width: {totalCommitments > 0 ? (fixedTotal / totalCommitments) * 100 : 100}%"></div>
+              <div class="bg-brand-cyan h-full transition-all duration-300" style="width: {totalCommitments > 0 ? (variableTotal / totalCommitments) * 100 : 0}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-brand-surface-2 text-center text-xs text-brand-surface-2">
+          <span class="font-bold text-brand-cyan">{recortablePct.toFixed(0)}%</span> de gastos en el horizonte son variables/recortables.
         </div>
       </div>
     </div>

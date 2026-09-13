@@ -1,5 +1,6 @@
 import express from 'express';
 import multer from 'multer';
+import { randomUUID } from 'node:crypto';
 import { decryptNBBBackup } from '../services/backup.js';
 
 const router = express.Router();
@@ -176,11 +177,25 @@ router.post('/import', upload.single('file'), async (req, res, next) => {
               }
             : row;
 
+        // Populate remote-sync identity columns for imported business rows.
+        // `users` is excluded from sync (local password hash must not reach the server).
+        if (tableName !== 'users') {
+          normalizedRow.uuid = normalizedRow.uuid ?? randomUUID();
+          normalizedRow.updated_at =
+            normalizedRow.updated_at ?? new Date().toISOString();
+        }
+
         const validColumns = allowedColumns.filter(
           (c) =>
             Object.prototype.hasOwnProperty.call(normalizedRow, c) &&
             normalizedRow[c] !== undefined,
         );
+
+        if (tableName !== 'users') {
+          for (const syncCol of ['uuid', 'updated_at']) {
+            if (!validColumns.includes(syncCol)) validColumns.push(syncCol);
+          }
+        }
 
         if (validColumns.length === 0) continue;
 

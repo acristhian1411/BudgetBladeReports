@@ -1,7 +1,23 @@
+import { randomUUID } from 'node:crypto';
+
 /**
  * Database migration: Creates all tables matching mobile SQLite schema
  * Runs on backend startup
  */
+
+// Tables that participate in remote sync (single-tenant dataset, excluding users).
+export const SYNC_TABLES = [
+  'tills',
+  'categories',
+  'entities',
+  'credit_cards',
+  'transactions',
+  'scheduled_plans',
+  'scheduled_occurrences',
+  'credit_card_payment_items',
+  'scheduled_payments_mapping',
+];
+
 export const migrateDatabase = async (pool) => {
   const client = await pool.connect();
   try {
@@ -208,9 +224,46 @@ export const migrateDatabase = async (pool) => {
       CREATE INDEX IF NOT EXISTS idx_scheduled_payments_mapping_transaction ON scheduled_payments_mapping(transaction_id);
     `);
 
+    // -----------------------------------------------------------------------
+    // Remote sync columns (uuid identity, soft delete, updated_at, device_id)
+    // -----------------------------------------------------------------------
+    for (const tableName of SYNC_TABLES) {
+      await client.query(`
+        ALTER TABLE ${tableName}
+          ADD COLUMN IF NOT EXISTS uuid TEXT,
+          ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS device_id TEXT;
+      `);
+    }
+
+    // Backfill uuid + updated_at for pre-existing rows (JS-side uuidv4 avoids
+    // requiring the pgcrypto extension).
+    for (const tableName of SYNC_TABLES) {
+      const missing = await client.query(
+        `SELECT id FROM ${tableName} WHERE uuid IS NULL`,
+      );
+      for (const row of missing.rows) {
+        await client.query(`UPDATE ${tableName} SET uuid = $1 WHERE id = $2`, [
+          randomUUID(),
+          row.id,
+        ]);
+      }
+      await client.query(
+        `UPDATE ${tableName} SET updated_at = now() WHERE updated_at IS NULL`,
+      );
+    }
+
+    // Unique index on uuid for idempotent sync lookups.
+    for (const tableName of SYNC_TABLES) {
+      await client.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_${tableName}_uuid ON ${tableName}(uuid)`,
+      );
+    }
+
     // Seed categories if table is empty
     const categoryCount = await client.query('SELECT COUNT(*) FROM categories');
-    if (categoryCount.rows[0].count === 0) {
+    if (Number(categoryCount.rows[0].count) === 0) {
       const categoriesList = [
         ['Alimentación', 'expense'],
         ['Salud', 'expense'],
