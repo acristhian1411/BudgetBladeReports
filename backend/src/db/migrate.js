@@ -31,7 +31,7 @@ export const migrateDatabase = async (pool) => {
       -- Categories
       CREATE TABLE IF NOT EXISTS categories (
         id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
         type TEXT CHECK(type IN ('income', 'expense'))
       );
 
@@ -249,6 +249,16 @@ export const migrateDatabase = async (pool) => {
       );
     }
 
+    // Categories: allow the same name across income/expense (mobile behavior,
+    // e.g. "Ajustes" and "Intereses" exist in both). Replace the old unique
+    // constraint on name with a composite unique on (name, type).
+    await client.query(`
+      ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_name_key;
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_name_type ON categories(name, type);
+    `);
+
     // Ledger of processed sync operations (idempotency + audit).
     await client.query(`
       CREATE TABLE IF NOT EXISTS sync_operations (
@@ -277,7 +287,13 @@ export const migrateDatabase = async (pool) => {
         ['Préstamos', 'expense'],
         ['Ocio', 'expense'],
         ['Educación', 'expense'],
+        ['Impuestos', 'expense'],
+        ['Pago de tarjetas', 'expense'],
+        ['Intereses de tarjeta', 'expense'],
+        ['Intereses', 'expense'],
+        ['Otros', 'expense'],
         ['Salario', 'income'],
+        ['Ajustes', 'income'],
         ['Ventas', 'income'],
         ['Alquileres Cobrados', 'income'],
         ['Intereses', 'income'],
@@ -285,7 +301,7 @@ export const migrateDatabase = async (pool) => {
 
       for (const [name, type] of categoriesList) {
         await client.query(
-          'INSERT INTO categories (name, type, uuid, updated_at) VALUES ($1, $2, $3, now()) ON CONFLICT (name) DO NOTHING',
+          'INSERT INTO categories (name, type, uuid, updated_at) VALUES ($1, $2, $3, now()) ON CONFLICT (name, type) DO NOTHING',
           [name, type, randomUUID()],
         );
       }

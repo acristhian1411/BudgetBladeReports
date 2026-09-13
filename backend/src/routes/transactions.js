@@ -15,7 +15,7 @@ router.get('/', async (req, res, next) => {
 
     let query = 'SELECT transactions.*, categories.name as category_name, tills.name as till_name FROM transactions ' +
           'LEFT JOIN categories ON transactions.category_id = categories.id ' +
-          'LEFT JOIN tills ON transactions.till_id = tills.id WHERE 1=1';
+          'LEFT JOIN tills ON transactions.till_id = tills.id WHERE transactions.deleted_at IS NULL';
     const params = [];
     let from_date = start_date ? new Date(start_date).toISOString() : null;
     if (start_date) {
@@ -46,12 +46,10 @@ router.get('/', async (req, res, next) => {
 
     query += ' ORDER BY transactions.transaction_date DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
     params.push(parseInt(limit), offset);
-    console.log('Executing query:', query)
-    console.log('with params:', params);
     const transactions = await db.query(query, params);
 
     // Get total count
-    let countQuery = 'SELECT COUNT(*) as total FROM transactions WHERE 1=1';
+    let countQuery = 'SELECT COUNT(*) as total FROM transactions WHERE deleted_at IS NULL';
     const countParams = [];
     if (start_date) {
       countQuery += ` AND transaction_date >= $${countParams.length + 1}::date`;

@@ -24,6 +24,7 @@ router.get('/summary', async (req, res, next) => {
       ), 0) as total
       FROM transactions
       WHERE COALESCE(affects_balance, 1) = 1
+        AND deleted_at IS NULL
     `);
 
     // Spending by category
@@ -32,6 +33,7 @@ router.get('/summary', async (req, res, next) => {
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE t.type = 'egreso'
+        AND t.deleted_at IS NULL
       GROUP BY c.id, c.name, c.type
       ORDER BY total DESC
       LIMIT 10
@@ -43,6 +45,7 @@ router.get('/summary', async (req, res, next) => {
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE (t.type = 'ingreso' or t.type = 'transferencia') 
+        AND t.deleted_at IS NULL
       GROUP BY c.id, c.name, c.type
       ORDER BY total DESC
       LIMIT 10
@@ -61,6 +64,7 @@ router.get('/summary', async (req, res, next) => {
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
       LEFT JOIN tills tl ON t.till_id = tl.id
+      WHERE t.deleted_at IS NULL
       ORDER BY t.transaction_date DESC
       LIMIT 10
     `);
@@ -79,6 +83,8 @@ router.get('/summary', async (req, res, next) => {
       JOIN scheduled_plans sp ON so.plan_id = sp.id
       LEFT JOIN entities e ON sp.entity_id = e.id
       WHERE so.status IN ('pending', 'partially_paid', 'overdue')
+        AND so.deleted_at IS NULL
+        AND sp.deleted_at IS NULL
       ORDER BY so.due_date ASC
       LIMIT 5
     `);
@@ -101,6 +107,8 @@ router.get('/summary', async (req, res, next) => {
       LEFT JOIN transactions t
         ON t.till_id = tl.id
         AND COALESCE(t.affects_balance, 1) = 1
+        AND t.deleted_at IS NULL
+      WHERE tl.deleted_at IS NULL
       GROUP BY tl.id, tl.name, tl.account_number, tl.is_bank
       ORDER BY tl.name ASC
     `);
@@ -119,7 +127,9 @@ router.get('/summary', async (req, res, next) => {
       LEFT JOIN transactions t
         ON t.till_id = tl.id
         AND COALESCE(t.affects_balance, 1) = 1
+        AND t.deleted_at IS NULL
       WHERE COALESCE(tl.is_bank, false) = false
+        AND tl.deleted_at IS NULL
     `);
 
     res.json({
@@ -183,6 +193,7 @@ router.get('/credit-cards', async (req, res, next) => {
             WHERE t.credit_card_id = cc.id
               AND t.affects_balance = 0
               AND t.type = 'egreso'
+              AND t.deleted_at IS NULL
           ), 0
         ) AS total_charged,
         COALESCE(
@@ -190,10 +201,13 @@ router.get('/credit-cards', async (req, res, next) => {
             SELECT SUM(ccpi.amount_paid)
             FROM credit_card_payment_items ccpi
             WHERE ccpi.credit_card_id = cc.id
+              AND ccpi.deleted_at IS NULL
           ), 0
         ) AS total_paid
       FROM credit_cards cc
       JOIN tills tl ON cc.till_id = tl.id
+      WHERE cc.deleted_at IS NULL
+        AND tl.deleted_at IS NULL
       ORDER BY tl.name ASC, cc.name ASC
     `);
 

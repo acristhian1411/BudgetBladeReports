@@ -40,6 +40,8 @@ router.get('/', async (req, res, next) => {
       LEFT JOIN transactions t
         ON t.till_id = tl.id
         AND COALESCE(t.affects_balance, 1) = 1
+        AND t.deleted_at IS NULL
+      WHERE tl.deleted_at IS NULL
       GROUP BY tl.id, tl.name, tl.is_bank
       ORDER BY tl.name ASC
     `);
@@ -73,6 +75,7 @@ router.get('/', async (req, res, next) => {
               WHERE t.credit_card_id = cc.id
                 AND t.affects_balance = 0
                 AND t.type = 'egreso'
+                AND t.deleted_at IS NULL
             ), 0
           ) AS total_charged,
           COALESCE(
@@ -80,10 +83,12 @@ router.get('/', async (req, res, next) => {
               SELECT SUM(ccpi.amount_paid)
               FROM credit_card_payment_items ccpi
               WHERE ccpi.credit_card_id = cc.id
+                AND ccpi.deleted_at IS NULL
             ), 0
           ) AS total_paid
         FROM credit_cards cc
         WHERE cc.till_id IN (${filteredTills.map(t => t.id).join(',')})
+          AND cc.deleted_at IS NULL
       `);
 
       creditCardsData = cardsResult.rows.map(row => ({
@@ -129,6 +134,8 @@ router.get('/', async (req, res, next) => {
         -- Past unpaid occurrences
         (so.due_date::date < CURRENT_DATE AND so.status IN ('pending', 'partially_paid', 'overdue'))
       )
+      AND so.deleted_at IS NULL
+      AND sp.deleted_at IS NULL
       ${statusFilter}
       ORDER BY so.due_date ASC
     `);
@@ -287,6 +294,8 @@ router.get('/', async (req, res, next) => {
             FROM scheduled_payments_mapping spm
             JOIN scheduled_occurrences so ON spm.occurrence_id = so.id
             WHERE so.plan_id = sp.id
+              AND spm.deleted_at IS NULL
+              AND so.deleted_at IS NULL
             ORDER BY spm.payment_date DESC, spm.id DESC
             LIMIT 1
           ), 0
@@ -296,11 +305,13 @@ router.get('/', async (req, res, next) => {
         SELECT 1 
         FROM scheduled_occurrences so 
         WHERE so.plan_id = sp.id 
+          AND so.deleted_at IS NULL
           AND so.due_date::date >= CURRENT_DATE
           AND so.due_date::date <= CURRENT_DATE + INTERVAL '${horizonDays} days'
       )
       AND sp.base_amount = 0
       AND sp.type = 'egreso'
+      AND sp.deleted_at IS NULL
     `);
 
     const variableCommitments = variablePlansResult.rows.map(row => ({

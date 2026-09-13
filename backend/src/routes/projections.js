@@ -24,6 +24,8 @@ router.get('/', async (req, res, next) => {
       LEFT JOIN transactions t
         ON t.till_id = tl.id
         AND COALESCE(t.affects_balance, 1) = 1
+        AND t.deleted_at IS NULL
+      WHERE tl.deleted_at IS NULL
     `);
     const initialBalance = parseFloat(liquidityResult.rows[0]?.total || 0);
 
@@ -43,6 +45,8 @@ router.get('/', async (req, res, next) => {
       JOIN scheduled_plans sp ON so.plan_id = sp.id
       LEFT JOIN entities e ON sp.entity_id = e.id
       where sp.type = 'egreso'
+        AND so.deleted_at IS NULL
+        AND sp.deleted_at IS NULL
       ORDER BY so.due_date ASC
     `);
 
@@ -65,8 +69,10 @@ router.get('/', async (req, res, next) => {
         SELECT 1
         FROM scheduled_occurrences so
         WHERE so.plan_id = sp.id
+          AND so.deleted_at IS NULL
       )
       and sp.type = 'egreso'
+        AND sp.deleted_at IS NULL
       ORDER BY sp.start_date ASC, sp.id ASC
     `);
 
