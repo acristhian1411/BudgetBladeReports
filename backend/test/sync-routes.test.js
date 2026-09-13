@@ -14,7 +14,7 @@ before(async () => {
   pool = createPool();
   await migrateDatabase(pool);
 
-  // Mount the sync router without auth (auth is exercised in phase 5 tests).
+  // Mount the sync router without auth (auth is exercised in its own tests).
   const app = express();
   app.use(express.json({ limit: '50mb' }));
   app.locals.db = pool;
@@ -36,28 +36,25 @@ after(async () => {
 
 const batch = (changes, lastSyncedAt) => ({ changes, lastSyncedAt });
 
-test('POST /api/sync applies a create and returns accepted + serverChanges', async () => {
-  const res = await fetch(`${baseUrl}/api/sync`, {
+const post = (body) =>
+  fetch(`${baseUrl}/api/sync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      batch([
-        {
-          uuid: 'route-create-1',
-          entity: 'transactions',
-          operation: 'create',
-          data: {
-            id: 1,
-            amount: 100,
-            type: 'ingreso',
-            description: 'via route',
-            transaction_date: '2026-09-13',
-          },
-          updated_at: '2026-09-13T10:00:00Z',
-        },
-      ]),
-    ),
+    body: JSON.stringify(body),
   });
+
+test('POST /api/sync applies a create and returns accepted + serverChanges', async () => {
+  const res = await post(
+    batch([
+      {
+        uuid: 'route-create-1',
+        entity: 'transactions',
+        operation: 'create',
+        data: { uuid: 'tx-route-1', amount: 100, type: 'ingreso', description: 'via route', transaction_date: '2026-09-13' },
+        updated_at: '2026-09-13T10:00:00Z',
+      },
+    ]),
+  );
 
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -67,14 +64,13 @@ test('POST /api/sync applies a create and returns accepted + serverChanges', asy
   assert.ok(body.serverChanges);
 });
 
-test('GET /api/sync?since=0 returns the created row', async () => {
+test('GET /api/sync?since=0 returns the created row by uuid', async () => {
   const res = await fetch(`${baseUrl}/api/sync?since=0`);
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.ok(
-    body.serverChanges.transactions.some((r) => r.id === 1),
-    'created transaction should be returned on full pull',
-  );
+  const row = body.serverChanges.transactions.find((r) => r.uuid === 'tx-route-1');
+  assert.ok(row, 'created transaction should be returned on full pull');
+  assert.ok(!('id' in row), 'response should not expose server id');
 });
 
 test('POST /api/sync rejects a batch over the size limit with 400', async () => {
@@ -82,34 +78,26 @@ test('POST /api/sync rejects a batch over the size limit with 400', async () => 
     uuid: `too-many-${i}`,
     entity: 'transactions',
     operation: 'create',
-    data: { id: 1000 + i, amount: 1, type: 'ingreso', transaction_date: '2026-09-13' },
+    data: { uuid: `tx-too-many-${i}`, amount: 1, type: 'ingreso', transaction_date: '2026-09-13' },
     updated_at: '2026-09-13T10:00:00Z',
   }));
 
-  const res = await fetch(`${baseUrl}/api/sync`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(batch(changes)),
-  });
+  const res = await post(batch(changes));
   assert.equal(res.status, 400);
 });
 
 test('POST /api/sync rejects an unknown entity with 400', async () => {
-  const res = await fetch(`${baseUrl}/api/sync`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      batch([
-        {
-          uuid: 'bad-entity',
-          entity: 'not_a_table',
-          operation: 'create',
-          data: { id: 1 },
-          updated_at: '2026-09-13T10:00:00Z',
-        },
-      ]),
-    ),
-  });
+  const res = await post(
+    batch([
+      {
+        uuid: 'bad-entity',
+        entity: 'not_a_table',
+        operation: 'create',
+        data: { uuid: 'x' },
+        updated_at: '2026-09-13T10:00:00Z',
+      },
+    ]),
+  );
   assert.equal(res.status, 400);
 });
 
@@ -118,4 +106,57 @@ test('GET /api/sync with a future cursor returns no changes', async () => {
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.serverChanges.transactions.length, 0);
+});
+
+test('POST /api/sync with lastSyncedAt returns serverChanges since that cursor', async () => {
+  const res = await post(
+    batch(
+      [
+        {
+          uuid: 'route-last-sync-1',
+          entity: 'transactions',
+          operation: 'create',
+          data: { uuid: 'tx-last-sync', amount: 7, type: 'ingreso', transaction_date: '2026-09-13' },
+          updated_at: '2026-09-13T20:00:00Z',
+        },
+      ],
+      '2026-09-13T19:59:59Z',
+    ),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.ok(
+    body.serverChanges.transactions.some((r) => r.uuid === 'tx-last-sync'),
+    'serverChanges should include the just-applied row after the lastSyncedAt cursor',
+  );
+});
+
+test('POST /api/sync rejects a payload missing the operation uuid with 400', async () => {
+  const res = await post(
+    batch([
+      {
+        entity: 'transactions',
+        operation: 'create',
+        data: { uuid: 'tx-no-op-uuid' },
+        updated_at: '2026-09-13T10:00:00Z',
+      },
+    ]),
+  );
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/sync rejects a payload missing the entity uuid with 400', async () => {
+  const res = await post(
+    batch([
+      {
+        uuid: 'route-no-entity-uuid',
+        entity: 'transactions',
+        operation: 'create',
+        data: { amount: 1 },
+        updated_at: '2026-09-13T10:00:00Z',
+      },
+    ]),
+  );
+  assert.equal(res.status, 400);
 });

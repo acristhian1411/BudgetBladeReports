@@ -113,3 +113,58 @@ export const TABLE_COLUMNS = {
     'payment_date',
   ],
 };
+
+/**
+ * Foreign-key references expressed as `uuid` on the sync wire.
+ *
+ * For each sync entity, maps the internal integer FK column (`id`) to the uuid
+ * column exchanged with the mobile app (`uuid`) and the referenced table
+ * (`ref`). The server resolves `*_uuid` -> `*_id` on write and emits `*_uuid`
+ * (via joins) on read, so the mobile app never sees server-internal ids.
+ */
+export const FK_UUID_MAP = {
+  transactions: [
+    { id: 'till_id', uuid: 'till_uuid', ref: 'tills' },
+    { id: 'category_id', uuid: 'category_uuid', ref: 'categories' },
+    { id: 'credit_card_id', uuid: 'credit_card_uuid', ref: 'credit_cards' },
+    { id: 'parent_transaction_id', uuid: 'parent_transaction_uuid', ref: 'transactions' },
+  ],
+  scheduled_plans: [
+    { id: 'category_id', uuid: 'category_uuid', ref: 'categories' },
+    { id: 'entity_id', uuid: 'entity_uuid', ref: 'entities' },
+    { id: 'till_id', uuid: 'till_uuid', ref: 'tills' },
+  ],
+  scheduled_occurrences: [
+    { id: 'plan_id', uuid: 'plan_uuid', ref: 'scheduled_plans' },
+    { id: 'transaction_id', uuid: 'transaction_uuid', ref: 'transactions' },
+  ],
+  credit_cards: [{ id: 'till_id', uuid: 'till_uuid', ref: 'tills' }],
+  credit_card_payment_items: [
+    { id: 'credit_card_id', uuid: 'credit_card_uuid', ref: 'credit_cards' },
+    { id: 'purchase_transaction_id', uuid: 'purchase_transaction_uuid', ref: 'transactions' },
+    { id: 'payment_transaction_id', uuid: 'payment_transaction_uuid', ref: 'transactions' },
+  ],
+  scheduled_payments_mapping: [
+    { id: 'occurrence_id', uuid: 'occurrence_uuid', ref: 'scheduled_occurrences' },
+    { id: 'transaction_id', uuid: 'transaction_uuid', ref: 'transactions' },
+  ],
+};
+
+// Internal integer FK columns across all sync tables.
+const FK_ID_COLUMNS = new Set(
+  Object.values(FK_UUID_MAP)
+    .flat()
+    .map((fk) => fk.id),
+);
+
+/**
+ * Non-FK, non-id business columns per sync table. Derived from TABLE_COLUMNS so
+ * the two stay consistent. These are exchanged as-is on the sync wire (e.g.
+ * `transfer_id` is a plain attribute, not an FK, so it remains here).
+ */
+export const BUSINESS_COLUMNS = Object.fromEntries(
+  SYNC_TABLES.map((entity) => [
+    entity,
+    (TABLE_COLUMNS[entity] ?? []).filter((c) => c !== 'id' && !FK_ID_COLUMNS.has(c)),
+  ]),
+);
