@@ -72,6 +72,16 @@ export async function apiPut(path, body) {
 }
 
 /**
+ * PATCH request
+ */
+export async function apiPatch(path, body) {
+  return fetchWithAuth(path, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+/**
  * DELETE request
  */
 export async function apiDelete(path) {

@@ -20,8 +20,9 @@
     { label: "Categorias", href: "/categories", icon: "🏷️" },
     { label: "Tarjetas de credito", href: "/credit-cards", icon: "🏦" },
     { label: "Entidades", href: "/entities", icon: "🏢" },
-    { label: "Compromisos", href: "/projections", icon: "📅" },
-    { label: "Análisis de Deuda", href: "/debt-capacity", icon: "📈" },
+    { label: "Compromisos", href: "/compromisos", icon: "📅" },
+    { label: "Proyecciones", href: "/projections", icon: "📈" },
+    { label: "Análisis de Deuda", href: "/debt-capacity", icon: "💹" },
     { label: "Sincronizacion", href: "/sync", icon: "⚡" },
   ];
 

@@ -17,6 +17,7 @@ import analysisRouter from './routes/analysis.js';
 import tillsRouter from './routes/tills.js';
 import categoriesRouter from './routes/categories.js';
 import creditCardsRouter from './routes/credit-cards.js';
+import scheduledRouter from './routes/scheduled.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { migrateDatabase } from './db/migrate.js';
@@ -73,6 +74,7 @@ app.use('/api/analysis', auth, analysisRouter);
 app.use('/api/tills', auth, tillsRouter);
 app.use('/api/categories', auth, categoriesRouter);
 app.use('/api/credit-cards', auth, creditCardsRouter);
+app.use('/api/scheduled', auth, scheduledRouter);
 
 // 404 handler
 app.use((req, res) => {
