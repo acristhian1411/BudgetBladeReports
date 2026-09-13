@@ -25,6 +25,24 @@ const TransferSchema = z.object({
   date: z.string().min(1),
 });
 
+const CreditCardPaymentSchema = z.object({
+  till_id: z.number().int(),
+  credit_card_id: z.number().int(),
+  capital_amount: z.number().positive(),
+  interest_amount: z.number().nonnegative().optional(),
+  description: z.string().trim().max(500).optional(),
+  date: z.string().min(1),
+  payment_method: z.string().trim().max(50).optional(),
+  payment_items: z
+    .array(
+      z.object({
+        purchase_transaction_id: z.number().int(),
+        amount_paid: z.number().positive(),
+      }),
+    )
+    .optional(),
+});
+
 const insertTxn = (queryable, row) =>
   queryable.query(
     `INSERT INTO transactions
@@ -49,6 +67,16 @@ const insertTxn = (queryable, row) =>
       row.updated_at,
     ],
   );
+
+const getCategoryIdByName = async (db, categoryName) => {
+  const row = await db.query(
+    `SELECT id FROM categories
+      WHERE type = 'expense' AND LOWER(name) = LOWER($1) AND deleted_at IS NULL
+      LIMIT 1`,
+    [categoryName],
+  );
+  return row.rows[0]?.id ?? null;
+};
 
 /**
  * GET /api/transactions
@@ -212,6 +240,95 @@ router.post('/transfer', async (req, res, next) => {
     });
 
     res.status(201).json({ transfer_id: transferId, ...ids });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/transactions/credit-card-payment
+ * Registers a credit card payment: capital (egreso, "Pago de tarjetas"),
+ * optional interest ("Intereses de tarjeta"), and purchase-payment mappings.
+ */
+router.post('/credit-card-payment', async (req, res, next) => {
+  const data = parseBody(CreditCardPaymentSchema, req, res);
+  if (!data) return;
+
+  const capital = Math.abs(data.capital_amount);
+  const interest = Math.abs(data.interest_amount ?? 0);
+  const paymentMethod = data.payment_method ?? 'cash';
+  const paymentItems = data.payment_items ?? [];
+
+  try {
+    const db = req.app.locals.db;
+    const paymentCategoryId = await getCategoryIdByName(db, 'Pago de tarjetas');
+    const interestCategoryId = await getCategoryIdByName(db, 'Intereses de tarjeta');
+
+    const result = await withTransaction(db, async (client) => {
+      const capitalRes = await insertTxn(client, stampNew({
+        till_id: data.till_id,
+        amount: capital,
+        type: 'egreso',
+        description: data.description ?? 'Pago de tarjeta',
+        transaction_date: data.date,
+        category_id: paymentCategoryId,
+        payment_method: paymentMethod,
+        credit_card_id: data.credit_card_id,
+        affects_balance: 1,
+      }));
+      const capitalTransactionId = capitalRes.rows[0].id;
+      let interestTransactionId = null;
+
+      if (interest > 0) {
+        const interestRes = await insertTxn(client, stampNew({
+          till_id: data.till_id,
+          amount: interest,
+          type: 'egreso',
+          description: 'Intereses de tarjeta',
+          transaction_date: data.date,
+          category_id: interestCategoryId,
+          payment_method: paymentMethod,
+          credit_card_id: data.credit_card_id,
+          affects_balance: 1,
+          parent_transaction_id: capitalTransactionId,
+        }));
+        interestTransactionId = interestRes.rows[0].id;
+      }
+
+      for (const item of paymentItems) {
+        const purchaseTransactionId = Number(item.purchase_transaction_id);
+        const amountPaid = Math.abs(Number(item.amount_paid) || 0);
+        if (!purchaseTransactionId || amountPaid <= 0) continue;
+
+        const itemRow = stampNew({
+          credit_card_id: data.credit_card_id,
+          purchase_transaction_id: purchaseTransactionId,
+          payment_transaction_id: capitalTransactionId,
+          amount_paid: amountPaid,
+        });
+        await client.query(
+          `INSERT INTO credit_card_payment_items
+             (credit_card_id, purchase_transaction_id, payment_transaction_id,
+              amount_paid, uuid, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            itemRow.credit_card_id,
+            itemRow.purchase_transaction_id,
+            itemRow.payment_transaction_id,
+            itemRow.amount_paid,
+            itemRow.uuid,
+            itemRow.updated_at,
+          ],
+        );
+      }
+
+      return {
+        capital_transaction_id: capitalTransactionId,
+        interest_transaction_id: interestTransactionId,
+      };
+    });
+
+    res.status(201).json(result);
   } catch (error) {
     next(error);
   }

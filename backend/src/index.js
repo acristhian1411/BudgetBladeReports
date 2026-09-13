@@ -16,6 +16,7 @@ import projectionsRouter from './routes/projections.js';
 import analysisRouter from './routes/analysis.js';
 import tillsRouter from './routes/tills.js';
 import categoriesRouter from './routes/categories.js';
+import creditCardsRouter from './routes/credit-cards.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { migrateDatabase } from './db/migrate.js';
@@ -71,6 +72,7 @@ app.use('/api/projections', auth, projectionsRouter);
 app.use('/api/analysis', auth, analysisRouter);
 app.use('/api/tills', auth, tillsRouter);
 app.use('/api/categories', auth, categoriesRouter);
+app.use('/api/credit-cards', auth, creditCardsRouter);
 
 // 404 handler
 app.use((req, res) => {
