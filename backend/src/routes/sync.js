@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
 import { decryptNBBBackup } from '../services/backup.js';
+import { applyChanges, getChangesSince } from '../services/sync.js';
 import { DELETE_ORDER, INSERT_ORDER, TABLE_COLUMNS } from '../db/tables.js';
 
 const router = express.Router();
@@ -20,6 +21,42 @@ const isClientImportError = (error) => {
   const message = error?.message || '';
   return IMPORT_CLIENT_ERROR_PATTERNS.some((pattern) => pattern.test(message));
 };
+
+/**
+ * GET /api/sync?since=<ts>
+ * Pulls incremental changes (all entities) since the given cursor.
+ * `since=0` performs a full pull.
+ */
+router.get('/', async (req, res, next) => {
+  try {
+    const db = req.app.locals.db;
+    const { since } = req.query;
+    const serverChanges = await getChangesSince(db, since ?? '0');
+    res.json({ serverChanges, syncedAt: new Date().toISOString() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/sync
+ * Pushes a batch of create/update/delete operations (mobile outbox).
+ */
+router.post('/', async (req, res, next) => {
+  try {
+    const db = req.app.locals.db;
+    const result = await applyChanges(db, req.body ?? {});
+    res.json(result);
+  } catch (error) {
+    if (error?.name === 'ZodError') {
+      return res.status(400).json({
+        error: 'Invalid sync payload',
+        details: error.issues,
+      });
+    }
+    next(error);
+  }
+});
 
 /**
  * POST /api/sync/import
