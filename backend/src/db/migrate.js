@@ -1,22 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { SYNC_TABLES } from './tables.js';
 
 /**
  * Database migration: Creates all tables matching mobile SQLite schema
  * Runs on backend startup
  */
-
-// Tables that participate in remote sync (single-tenant dataset, excluding users).
-export const SYNC_TABLES = [
-  'tills',
-  'categories',
-  'entities',
-  'credit_cards',
-  'transactions',
-  'scheduled_plans',
-  'scheduled_occurrences',
-  'credit_card_payment_items',
-  'scheduled_payments_mapping',
-];
 
 export const migrateDatabase = async (pool) => {
   const client = await pool.connect();
@@ -261,6 +249,18 @@ export const migrateDatabase = async (pool) => {
       );
     }
 
+    // Ledger of processed sync operations (idempotency + audit).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sync_operations (
+        uuid TEXT PRIMARY KEY,
+        entity TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        entity_id INTEGER,
+        device_id TEXT,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+
     // Seed categories if table is empty
     const categoryCount = await client.query('SELECT COUNT(*) FROM categories');
     if (Number(categoryCount.rows[0].count) === 0) {
@@ -285,8 +285,8 @@ export const migrateDatabase = async (pool) => {
 
       for (const [name, type] of categoriesList) {
         await client.query(
-          'INSERT INTO categories (name, type) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING',
-          [name, type],
+          'INSERT INTO categories (name, type, uuid, updated_at) VALUES ($1, $2, $3, now()) ON CONFLICT (name) DO NOTHING',
+          [name, type, randomUUID()],
         );
       }
     }

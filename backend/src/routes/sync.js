@@ -2,102 +2,10 @@ import express from 'express';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
 import { decryptNBBBackup } from '../services/backup.js';
+import { DELETE_ORDER, INSERT_ORDER, TABLE_COLUMNS } from '../db/tables.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
-
-// Deletion and insertion order for atomic transactions
-const DELETE_ORDER = [
-  'credit_card_payment_items',
-  'scheduled_payments_mapping',
-  'scheduled_occurrences',
-  'scheduled_plans',
-  'transactions',
-  'credit_cards',
-  'entities',
-  'categories',
-  'tills',
-  'users',
-];
-
-const INSERT_ORDER = [
-  'users',
-  'tills',
-  'categories',
-  'entities',
-  'credit_cards',
-  'transactions',
-  'scheduled_plans',
-  'scheduled_occurrences',
-  'credit_card_payment_items',
-  'scheduled_payments_mapping',
-];
-
-const TABLE_COLUMNS = {
-  users: [
-    'id',
-    'password',
-    'password_salt',
-    'password_iterations',
-    'password_algorithm',
-    'failed_attempts',
-    'locked_until',
-  ],
-  tills: ['id', 'name', 'account_number', 'is_bank'],
-  categories: ['id', 'name', 'type'],
-  entities: ['id', 'name', 'type', 'contact'],
-  credit_cards: ['id', 'till_id', 'name', 'credit_limit'],
-  transactions: [
-    'id',
-    'till_id',
-    'amount',
-    'type',
-    'description',
-    'transfer_id',
-    'transaction_date',
-    'category_id',
-    'payment_method',
-    'credit_card_id',
-    'affects_balance',
-    'parent_transaction_id',
-  ],
-  scheduled_plans: [
-    'id',
-    'category_id',
-    'entity_id',
-    'till_id',
-    'title',
-    'base_amount',
-    'total_installments',
-    'start_date',
-    'type',
-  ],
-  scheduled_occurrences: [
-    'id',
-    'plan_id',
-    'installment_number',
-    'due_date',
-    'type',
-    'amount',
-    'remaining_amount',
-    'status',
-    'transaction_id',
-  ],
-  credit_card_payment_items: [
-    'id',
-    'credit_card_id',
-    'purchase_transaction_id',
-    'payment_transaction_id',
-    'amount_paid',
-  ],
-  scheduled_payments_mapping: [
-    'id',
-    'occurrence_id',
-    'transaction_id',
-    'amount_paid',
-    'payment_date',
-  ],
-};
 
 const IMPORT_CLIENT_ERROR_PATTERNS = [
   /Invalid \.nbb/i,

@@ -1,7 +1,8 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { migrateDatabase, SYNC_TABLES } from '../src/db/migrate.js';
-import { resetTestDatabase, createPool } from './helpers/db.js';
+import { migrateDatabase } from '../src/db/migrate.js';
+import { SYNC_TABLES } from '../src/db/tables.js';
+import { resetTestDatabase, createPool } from '../test-utils/db.js';
 
 let pool;
 
