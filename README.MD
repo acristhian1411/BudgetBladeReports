@@ -66,6 +66,12 @@ Esta aplicación web es el complemento de escritorio de [BudgetBlade](https://gi
    - **API Backend**: http://localhost:3000/api
    - **Base de datos**: localhost:5432
 
+### Aplicación instalable (PWA)
+
+En navegadores compatibles, instala BudgetBlade Reports desde el menú del navegador para abrirla en una ventana independiente. En producción, sirve el frontend desde la raíz del dominio y mediante HTTPS; `localhost` está permitido para desarrollo.
+
+La PWA cachea recursos estáticos de la aplicación, pero no páginas ni respuestas de la API. Consultar o modificar información financiera requiere conexión; no se guardan datos financieros para uso sin conexión.
+
 ### Producción
 
 ```bash
