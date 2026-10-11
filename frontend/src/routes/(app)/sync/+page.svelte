@@ -62,9 +62,9 @@
   }
 </script>
 
-<div class="p-8 space-y-6">
+<div>
   <div>
-    <h1 class="text-4xl font-bold">Sincronizacion de datos</h1>
+    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Sincronizacion de datos</h1>
     <p class="text-brand-surface-2 mt-2">
       Importa tu respaldo encriptado desde la app movil
     </p>

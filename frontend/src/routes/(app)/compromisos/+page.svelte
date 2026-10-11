@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { apiGet, apiPost, apiPatch, apiDelete } from "$lib/api";
   import { formatCurrency, formatDateDisplay } from "$lib/formatting";
+  import ResponsiveTable from "$lib/components/ResponsiveTable.svelte";
 
   let plans = [];
   let tills = [];
@@ -248,10 +249,10 @@
   }
 </script>
 
-<div class="p-8 space-y-6">
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-4xl font-bold">Compromisos</h1>
+<div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Compromisos</h1>
       <p class="text-brand-surface-2 mt-2">
         Planes de pago, cuotas y abonos
       </p>
@@ -315,44 +316,60 @@
                 {#if details[plan.id].occurrences.length === 0}
                   <p class="text-sm text-brand-surface-2">Este plan aún no tiene cuotas generadas.</p>
                 {:else}
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                      <thead class="border-b border-brand-surface-2">
-                        <tr>
-                          <th class="text-left py-2 px-3">#</th>
-                          <th class="text-left py-2 px-3">Vencimiento</th>
-                          <th class="text-right py-2 px-3">Monto</th>
-                          <th class="text-right py-2 px-3">Restante</th>
-                          <th class="text-left py-2 px-3">Estado</th>
-                          <th class="text-right py-2 px-3"></th>
-                        </tr>
-                      </thead>
-                      <tbody class="divide-y divide-brand-surface-2">
-                        {#each details[plan.id].occurrences as occ (occ.id)}
-                          <tr class="hover:bg-brand-surface-2 transition-colors">
-                            <td class="py-3 px-3 text-brand-surface-2">{occ.installment_number ?? "-"}</td>
-                            <td class="py-3 px-3">{formatDateDisplay(occ.due_date)}</td>
-                            <td class="py-3 px-3 text-right">
-                              {occ.amount === null ? "Variable" : formatCurrency(occ.amount)}
-                            </td>
-                            <td class="py-3 px-3 text-right font-semibold">{formatCurrency(occ.remaining_amount)}</td>
-                            <td class="py-3 px-3">
-                              <span class="text-xs font-semibold {statusColor(occ.effective_status)}">
-                                {statusLabel(occ.effective_status)}
-                              </span>
-                            </td>
-                            <td class="py-3 px-3 text-right whitespace-nowrap">
-                              {#if occ.effective_status !== "processed"}
-                                <button class="text-xs text-brand-cyan mr-2" on:click={() => openPay(occ)}>Abonar</button>
-                              {/if}
-                              <button class="text-xs text-brand-surface-2 mr-2" on:click={() => openEdit(occ)}>Editar</button>
-                              <button class="text-xs text-brand-cyan" on:click={() => openHistory(occ)}>Historial</button>
-                            </td>
-                          </tr>
-                        {/each}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ResponsiveTable items={details[plan.id].occurrences}>
+                    <svelte:fragment slot="header">
+                      <th class="text-left py-2 px-3">#</th>
+                      <th class="text-left py-2 px-3">Vencimiento</th>
+                      <th class="text-right py-2 px-3">Monto</th>
+                      <th class="text-right py-2 px-3">Restante</th>
+                      <th class="text-left py-2 px-3">Estado</th>
+                      <th class="text-right py-2 px-3"></th>
+                    </svelte:fragment>
+                    <svelte:fragment slot="row" let:item>
+                      <td class="py-3 px-3 text-brand-surface-2">{item.installment_number ?? "-"}</td>
+                      <td class="py-3 px-3">{formatDateDisplay(item.due_date)}</td>
+                      <td class="py-3 px-3 text-right">
+                        {item.amount === null ? "Variable" : formatCurrency(item.amount)}
+                      </td>
+                      <td class="py-3 px-3 text-right font-semibold">{formatCurrency(item.remaining_amount)}</td>
+                      <td class="py-3 px-3">
+                        <span class="text-xs font-semibold {statusColor(item.effective_status)}">
+                          {statusLabel(item.effective_status)}
+                        </span>
+                      </td>
+                      <td class="py-3 px-3 text-right whitespace-nowrap">
+                        {#if item.effective_status !== "processed"}
+                          <button class="text-xs text-brand-cyan mr-2" on:click={() => openPay(item)}>Abonar</button>
+                        {/if}
+                        <button class="text-xs text-brand-surface-2 mr-2" on:click={() => openEdit(item)}>Editar</button>
+                        <button class="text-xs text-brand-cyan" on:click={() => openHistory(item)}>Historial</button>
+                      </td>
+                    </svelte:fragment>
+                    <svelte:fragment slot="card" let:item>
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                          <div class="text-sm font-semibold">
+                            Cuota {item.installment_number ?? "-"} · {formatDateDisplay(item.due_date)}
+                          </div>
+                          <div class="text-xs text-brand-surface-2 mt-0.5">
+                            {item.amount === null ? "Variable" : formatCurrency(item.amount)} · restante {formatCurrency(item.remaining_amount)}
+                          </div>
+                          <div class="mt-1">
+                            <span class="text-xs font-semibold {statusColor(item.effective_status)}">
+                              {statusLabel(item.effective_status)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mt-2 flex flex-wrap gap-3">
+                        {#if item.effective_status !== "processed"}
+                          <button class="text-xs text-brand-cyan" on:click={() => openPay(item)}>Abonar</button>
+                        {/if}
+                        <button class="text-xs text-brand-surface-2" on:click={() => openEdit(item)}>Editar</button>
+                        <button class="text-xs text-brand-cyan" on:click={() => openHistory(item)}>Historial</button>
+                      </div>
+                    </svelte:fragment>
+                  </ResponsiveTable>
                 {/if}
               {/if}
             </div>
@@ -421,7 +438,7 @@
           </select>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-sm mb-2" for="p-amount">Monto base</label>
             <input id="p-amount" type="number" step="0.01" min="0" class="input-field" bind:value={pBaseAmount} placeholder="0.00" />
@@ -460,7 +477,7 @@
           <label class="block text-sm mb-2" for="e-date">Vencimiento</label>
           <input id="e-date" type="date" class="input-field" bind:value={eDueDate} />
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-sm mb-2" for="e-amount">Monto</label>
             <input id="e-amount" type="number" step="0.01" min="0" class="input-field" bind:value={eAmount} placeholder="Variable" />

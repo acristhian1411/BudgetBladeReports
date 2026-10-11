@@ -83,10 +83,10 @@
   }
 </script>
 
-<div class="p-8 space-y-6">
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-4xl font-bold">Categorías</h1>
+<div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Categorías</h1>
       <p class="text-brand-surface-2 mt-2">Rubros de ingresos y egresos</p>
     </div>
     <button class="button-primary" on:click={() => openCreate()}>+ Nueva categoría</button>

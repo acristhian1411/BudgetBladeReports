@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { apiGet, apiPost, apiDelete } from "$lib/api";
   import { formatCurrency, formatDateDisplay } from "$lib/formatting";
+  import ResponsiveTable from "$lib/components/ResponsiveTable.svelte";
 
   const typeOptions = [
     { value: "", label: "Todos" },
@@ -250,10 +251,10 @@
   }
 </script>
 
-<div class="p-8 space-y-6">
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-4xl font-bold">Transacciones</h1>
+<div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Transacciones</h1>
       <p class="text-brand-surface-2 mt-2">
         Listado paginado con filtros por tipo, categoría y caja
       </p>
@@ -374,58 +375,79 @@
         </p>
       </div>
     {:else}
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="border-b border-brand-surface-2">
-            <tr>
-              <th class="text-left py-2 px-3">Fecha</th>
-              <th class="text-left py-2 px-3">Descripción</th>
-              <th class="text-left py-2 px-3">Tipo</th>
-              <th class="text-left py-2 px-3">Categoría</th>
-              <th class="text-left py-2 px-3">Caja</th>
-              <th class="text-right py-2 px-3">Monto</th>
-              <th class="text-right py-2 px-3"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-brand-surface-2">
-            {#each transactions as txn (txn.id)}
-              <tr class="hover:bg-brand-surface-2 transition-colors">
-                <td class="py-3 px-3 text-brand-surface-2"
-                  >{formatDateDisplay(txn.transaction_date)}</td
-                >
-                <td class="py-3 px-3">{txn.description || "-"}</td>
-                <td class="py-3 px-3 uppercase text-xs tracking-wider"
-                  >{txn.type}</td
-                >
-                <td class="py-3 px-3 text-brand-surface-2"
-                  >{txn.category_name ?? "-"}</td
-                >
-                <td class="py-3 px-3 text-brand-surface-2"
-                  >{txn.till_name ?? "-"}</td
-                >
-                <td
-                  class="py-3 px-3 text-right font-semibold"
-                  class:text-brand-emerald={txn.type === "ingreso" ||
-                    txn.type === "transferencia"}
-                  class:text-brand-rose={txn.type === "egreso"}
-                >
-                  {txn.type === "egreso" ? "-" : "+"}{formatCurrency(
-                    Math.abs(txn.amount || 0),
-                  )}
-                </td>
-                <td class="py-3 px-3 text-right">
-                  <button
-                    class="text-xs text-brand-rose"
-                    on:click={() => deleteTxn(txn)}
-                  >
-                    Borrar
-                  </button>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveTable items={transactions}>
+        <svelte:fragment slot="header">
+          <th class="text-left py-2 px-3">Fecha</th>
+          <th class="text-left py-2 px-3">Descripción</th>
+          <th class="text-left py-2 px-3">Tipo</th>
+          <th class="text-left py-2 px-3">Categoría</th>
+          <th class="text-left py-2 px-3">Caja</th>
+          <th class="text-right py-2 px-3">Monto</th>
+          <th class="text-right py-2 px-3"></th>
+        </svelte:fragment>
+        <svelte:fragment slot="row" let:item>
+          <td class="py-3 px-3 text-brand-surface-2"
+            >{formatDateDisplay(item.transaction_date)}</td
+          >
+          <td class="py-3 px-3">{item.description || "-"}</td>
+          <td class="py-3 px-3 uppercase text-xs tracking-wider">{item.type}</td>
+          <td class="py-3 px-3 text-brand-surface-2"
+            >{item.category_name ?? "-"}</td
+          >
+          <td class="py-3 px-3 text-brand-surface-2">{item.till_name ?? "-"}</td>
+          <td
+            class="py-3 px-3 text-right font-semibold"
+            class:text-brand-emerald={item.type === "ingreso" ||
+              item.type === "transferencia"}
+            class:text-brand-rose={item.type === "egreso"}
+          >
+            {item.type === "egreso" ? "-" : "+"}{formatCurrency(
+              Math.abs(item.amount || 0),
+            )}
+          </td>
+          <td class="py-3 px-3 text-right">
+            <button
+              class="text-xs text-brand-rose"
+              on:click={() => deleteTxn(item)}
+            >
+              Borrar
+            </button>
+          </td>
+        </svelte:fragment>
+        <svelte:fragment slot="card" let:item>
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold truncate">
+                {item.description || "Sin descripción"}
+              </div>
+              <div class="text-xs text-brand-surface-2 mt-0.5">
+                {item.till_name ?? "-"} · {item.category_name ?? "-"}
+              </div>
+              <div class="text-xs text-brand-surface-2 mt-0.5">
+                {formatDateDisplay(item.transaction_date)} · {item.type}
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1 shrink-0">
+              <span
+                class="text-sm font-bold"
+                class:text-brand-emerald={item.type === "ingreso" ||
+                  item.type === "transferencia"}
+                class:text-brand-rose={item.type === "egreso"}
+              >
+                {item.type === "egreso" ? "-" : "+"}{formatCurrency(
+                  Math.abs(item.amount || 0),
+                )}
+              </span>
+              <button
+                class="text-xs text-brand-rose"
+                on:click={() => deleteTxn(item)}
+              >
+                Borrar
+              </button>
+            </div>
+          </div>
+        </svelte:fragment>
+      </ResponsiveTable>
 
       <div class="mt-4 flex items-center justify-between">
         <p class="text-sm text-brand-surface-2">

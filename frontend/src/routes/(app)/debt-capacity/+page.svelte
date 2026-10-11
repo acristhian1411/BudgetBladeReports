@@ -2,6 +2,7 @@
   import { onDestroy, onMount, tick } from "svelte";
   import { apiGet } from "$lib/api";
   import { formatCurrency, formatDateDisplay } from "$lib/formatting";
+  import ResponsiveTable from "$lib/components/ResponsiveTable.svelte";
 
   let analysis = null;
   let loading = true;
@@ -396,10 +397,10 @@
   $: recortablePct = totalCommitments > 0 ? (variableTotal / totalCommitments) * 100 : 0;
 </script>
 
-<div class="p-8 space-y-6">
+<div>
   <!-- Header -->
   <div>
-    <h1 class="text-4xl font-bold">Análisis de Deuda y Capacidad</h1>
+    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Análisis de Deuda y Capacidad</h1>
     <p class="text-brand-surface-2 mt-2">
       Visualiza tu capacidad de endeudamiento y proyección de liquidez
     </p>
@@ -557,7 +558,7 @@
           <div class="text-xs font-semibold text-brand-surface-2 mb-2">
             Nueva deuda (opcional)
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label for="new-debt-amount" class="text-xs text-brand-surface-2">
                 Monto total
@@ -595,7 +596,7 @@
           <div class="text-xs font-semibold text-brand-surface-2 mt-3 mb-2">
             Ingresos esperados (opcional)
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label for="extra-income" class="text-xs text-brand-surface-2">
                 Monto
@@ -732,7 +733,7 @@
         {/if}
       </div>
 
-      <div class="h-96">
+      <div class="h-64 sm:h-80 lg:h-96">
         <canvas bind:this={debtCanvas} />
       </div>
     </div>
@@ -879,42 +880,58 @@
     {#if analysis.credit_cards_breakdown && analysis.credit_cards_breakdown.length > 0}
       <div class="card">
         <h2 class="text-xl font-bold mb-4">Detalle de tarjetas</h2>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="border-b border-brand-surface-2">
-              <tr>
-                <th class="text-left py-2 px-3">Tarjeta</th>
-                <th class="text-right py-2 px-3">Pendiente</th>
-                <th class="text-right py-2 px-3">Límite</th>
-                <th class="text-right py-2 px-3">Utilización</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-brand-surface-2">
-              {#each analysis.credit_cards_breakdown as card (card.card_id)}
-                <tr class="hover:bg-brand-surface-2 transition-colors">
-                  <td class="py-3 px-3 font-semibold">{card.card_name}</td>
-                  <td class="py-3 px-3 text-right text-brand-rose">
-                    {formatCurrency(card.outstanding_balance)}
-                  </td>
-                  <td class="py-3 px-3 text-right">
-                    {formatCurrency(card.credit_limit)}
-                  </td>
-                  <td class="py-3 px-3 text-right">
-                    <span
-                      class={card.utilization_pct >= 90
-                        ? "text-brand-rose"
-                        : card.utilization_pct >= 60
-                          ? "text-yellow-400"
-                          : "text-brand-emerald"}
-                    >
-                      {card.utilization_pct.toFixed(0)}%
-                    </span>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable items={analysis.credit_cards_breakdown} itemKey={(c) => c.card_id}>
+          <svelte:fragment slot="header">
+            <th class="text-left py-2 px-3">Tarjeta</th>
+            <th class="text-right py-2 px-3">Pendiente</th>
+            <th class="text-right py-2 px-3">Límite</th>
+            <th class="text-right py-2 px-3">Utilización</th>
+          </svelte:fragment>
+          <svelte:fragment slot="row" let:item>
+            <td class="py-3 px-3 font-semibold">{item.card_name}</td>
+            <td class="py-3 px-3 text-right text-brand-rose">
+              {formatCurrency(item.outstanding_balance)}
+            </td>
+            <td class="py-3 px-3 text-right">
+              {formatCurrency(item.credit_limit)}
+            </td>
+            <td class="py-3 px-3 text-right">
+              <span
+                class={item.utilization_pct >= 90
+                  ? "text-brand-rose"
+                  : item.utilization_pct >= 60
+                    ? "text-yellow-400"
+                    : "text-brand-emerald"}
+              >
+                {item.utilization_pct.toFixed(0)}%
+              </span>
+            </td>
+          </svelte:fragment>
+          <svelte:fragment slot="card" let:item>
+            <div class="flex items-start justify-between gap-2">
+              <div class="font-semibold text-sm">{item.card_name}</div>
+              <span
+                class="shrink-0 text-sm font-bold {item.utilization_pct >= 90
+                  ? 'text-brand-rose'
+                  : item.utilization_pct >= 60
+                    ? 'text-yellow-400'
+                    : 'text-brand-emerald'}"
+              >
+                {item.utilization_pct.toFixed(0)}%
+              </span>
+            </div>
+            <div class="flex justify-between text-sm mt-2">
+              <span class="text-brand-surface-2">Pendiente</span>
+              <span class="font-semibold text-brand-rose"
+                >{formatCurrency(item.outstanding_balance)}</span
+              >
+            </div>
+            <div class="flex justify-between text-sm mt-1">
+              <span class="text-brand-surface-2">Límite</span>
+              <span class="font-semibold">{formatCurrency(item.credit_limit)}</span>
+            </div>
+          </svelte:fragment>
+        </ResponsiveTable>
       </div>
     {/if}
   {/if}

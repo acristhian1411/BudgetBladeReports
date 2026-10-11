@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { apiGet } from "$lib/api";
   import { formatCurrency, formatDateDisplay } from "$lib/formatting";
+  import ResponsiveTable from "$lib/components/ResponsiveTable.svelte";
 
   let summary = null;
   let loading = true;
@@ -18,10 +19,10 @@
   });
 </script>
 
-<div class="p-8 space-y-6">
+<div>
   <!-- Header -->
   <div>
-    <h1 class="text-4xl font-bold">Panel</h1>
+    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Panel</h1>
     <p class="text-brand-surface-2 mt-2">Tu resumen financiero de un vistazo</p>
   </div>
 
@@ -224,40 +225,51 @@
     <!-- Recent Transactions -->
     <div class="card">
       <h2 class="text-xl font-bold mb-4">Transacciones recientes</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="border-b border-brand-surface-2">
-            <tr>
-              <th class="text-left py-2 px-3">Descripcion</th>
-              <th class="text-left py-2 px-3">Categoria</th>
-              <th class="text-right py-2 px-3">Monto</th>
-              <th class="text-left py-2 px-3">Fecha</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-brand-surface-2">
-            {#each summary.recentTransactions as txn (txn.id)}
-              <tr class="hover:bg-brand-surface-2 transition-colors">
-                <td class="py-3 px-3 truncate">{txn.description}</td>
-                <td class="py-3 px-3 text-brand-surface-2"
-                  >{txn.category || "-"}</td
-                >
-                <td
-                  class="py-3 px-3 text-right font-semibold"
-                  class:text-brand-emerald={txn.type === "ingreso"}
-                  class:text-brand-rose={txn.type === "egreso"}
-                >
-                  {txn.type === "ingreso" ? "+" : "-"}{formatCurrency(
-                    Math.abs(txn.amount),
-                  )}
-                </td>
-                <td class="py-3 px-3 text-brand-surface-2"
-                  >{formatDateDisplay(txn.transaction_date)}</td
-                >
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveTable items={summary.recentTransactions}>
+        <svelte:fragment slot="header">
+          <th class="text-left py-2 px-3">Descripcion</th>
+          <th class="text-left py-2 px-3">Categoria</th>
+          <th class="text-right py-2 px-3">Monto</th>
+          <th class="text-left py-2 px-3">Fecha</th>
+        </svelte:fragment>
+        <svelte:fragment slot="row" let:item>
+          <td class="py-3 px-3 truncate">{item.description}</td>
+          <td class="py-3 px-3 text-brand-surface-2">{item.category || "-"}</td>
+          <td
+            class="py-3 px-3 text-right font-semibold"
+            class:text-brand-emerald={item.type === "ingreso"}
+            class:text-brand-rose={item.type === "egreso"}
+          >
+            {item.type === "ingreso" ? "+" : "-"}{formatCurrency(
+              Math.abs(item.amount),
+            )}
+          </td>
+          <td class="py-3 px-3 text-brand-surface-2"
+            >{formatDateDisplay(item.transaction_date)}</td
+          >
+        </svelte:fragment>
+        <svelte:fragment slot="card" let:item>
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold truncate">
+                {item.description || "Sin descripción"}
+              </div>
+              <div class="text-xs text-brand-surface-2 mt-0.5">
+                {item.category || "-"} · {formatDateDisplay(item.transaction_date)}
+              </div>
+            </div>
+            <div
+              class="text-sm font-bold shrink-0"
+              class:text-brand-emerald={item.type === "ingreso"}
+              class:text-brand-rose={item.type === "egreso"}
+            >
+              {item.type === "ingreso" ? "+" : "-"}{formatCurrency(
+                Math.abs(item.amount),
+              )}
+            </div>
+          </div>
+        </svelte:fragment>
+      </ResponsiveTable>
     </div>
   {/if}
 </div>

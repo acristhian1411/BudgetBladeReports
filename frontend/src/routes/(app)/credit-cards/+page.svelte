@@ -222,10 +222,10 @@
   }
 </script>
 
-<div class="p-8 space-y-6">
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-4xl font-bold">Tarjetas de Crédito</h1>
+<div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Tarjetas de Crédito</h1>
       <p class="text-brand-surface-2 mt-2">
         Tarjetas asociadas a cajas y saldos pendientes
       </p>
@@ -369,7 +369,7 @@
       <div class="card w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto">
         <h2 class="text-xl font-bold">Pagar {payCardName}</h2>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-sm mb-2" for="pay-capital">Monto a pagar</label>
             <input id="pay-capital" type="number" step="0.01" min="0" class="input-field" bind:value={payCapital} placeholder="0.00" />

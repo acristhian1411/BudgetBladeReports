@@ -2,6 +2,7 @@
   import { onDestroy, onMount, tick } from "svelte";
   import { apiGet } from "$lib/api";
   import { formatCurrency, formatDateDisplay } from "$lib/formatting";
+  import ResponsiveTable from "$lib/components/ResponsiveTable.svelte";
 
   let projections = null;
   let loading = true;
@@ -168,9 +169,9 @@
   }
 </script>
 
-<div class="p-8 space-y-6">
+<div>
   <div>
-    <h1 class="text-4xl font-bold">Proyeccion de compromisos</h1>
+    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Proyeccion de compromisos</h1>
     <p class="text-brand-surface-2 mt-2">
       Visualiza tus compromisos financieros y el pronostico de liquidez
     </p>
@@ -250,7 +251,7 @@
       </div>
 
       {#if chartData && chartOptions}
-        <div class="h-80">
+        <div class="h-56 sm:h-80">
           <canvas bind:this={forecastCanvas} />
         </div>
       {:else}
@@ -263,57 +264,82 @@
     <!-- Upcoming Commitments Table -->
     <div class="card">
       <h2 class="text-xl font-bold mb-4">Compromisos programados</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="border-b border-brand-surface-2">
-            <tr>
-              <th class="text-left py-2 px-3">Titulo</th>
-              <th class="text-left py-2 px-3">Entidad</th>
-              <th class="text-right py-2 px-3">Monto</th>
-              <th class="text-left py-2 px-3">Vencimiento</th>
-              <th class="text-left py-2 px-3">Estado</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-brand-surface-2">
-            {#each projections.occurrences.slice(0, 20) as occurrence (occurrence.id)}
-              <tr class="hover:bg-brand-surface-2 transition-colors">
-                <td class="py-3 px-3">{occurrence.title}</td>
-                <td class="py-3 px-3 text-brand-surface-2"
-                  >{occurrence.entity_name || "-"}</td
-                >
-                <td class="py-3 px-3 text-right font-semibold text-brand-rose">
-                  {formatCurrency(occurrence.amount)}
-                </td>
-                <td class="py-3 px-3"
-                  >{formatDateDisplay(occurrence.due_date)}</td
-                >
-                <td class="py-3 px-3">
-                  <span
-                    class="px-2 py-1 rounded text-xs font-semibold
-                      {occurrence.status === 'processed'
-                      ? 'bg-brand-emerald/20 text-brand-emerald'
-                      : ''}
-                      {occurrence.status === 'pending'
-                      ? 'bg-brand-cyan/20 text-brand-cyan'
-                      : ''}
-                      {occurrence.status === 'overdue'
-                      ? 'bg-brand-rose/20 text-brand-rose'
-                      : ''}"
-                  >
-                    {occurrence.status === "processed"
-                      ? "Procesado"
-                      : occurrence.status === "pending"
-                        ? "Pendiente"
-                        : occurrence.status === "overdue"
-                          ? "Vencido"
-                          : occurrence.status}
-                  </span>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveTable items={projections.occurrences.slice(0, 20)}>
+        <svelte:fragment slot="header">
+          <th class="text-left py-2 px-3">Titulo</th>
+          <th class="text-left py-2 px-3">Entidad</th>
+          <th class="text-right py-2 px-3">Monto</th>
+          <th class="text-left py-2 px-3">Vencimiento</th>
+          <th class="text-left py-2 px-3">Estado</th>
+        </svelte:fragment>
+        <svelte:fragment slot="row" let:item>
+          <td class="py-3 px-3">{item.title}</td>
+          <td class="py-3 px-3 text-brand-surface-2"
+            >{item.entity_name || "-"}</td
+          >
+          <td class="py-3 px-3 text-right font-semibold text-brand-rose">
+            {formatCurrency(item.amount)}
+          </td>
+          <td class="py-3 px-3">{formatDateDisplay(item.due_date)}</td>
+          <td class="py-3 px-3">
+            <span
+              class="px-2 py-1 rounded text-xs font-semibold
+                {item.status === 'processed'
+                ? 'bg-brand-emerald/20 text-brand-emerald'
+                : ''}
+                {item.status === 'pending'
+                ? 'bg-brand-cyan/20 text-brand-cyan'
+                : ''}
+                {item.status === 'overdue'
+                ? 'bg-brand-rose/20 text-brand-rose'
+                : ''}"
+            >
+              {item.status === "processed"
+                ? "Procesado"
+                : item.status === "pending"
+                  ? "Pendiente"
+                  : item.status === "overdue"
+                    ? "Vencido"
+                    : item.status}
+            </span>
+          </td>
+        </svelte:fragment>
+        <svelte:fragment slot="card" let:item>
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold truncate">{item.title}</div>
+              <div class="text-xs text-brand-surface-2 mt-0.5">
+                {item.entity_name || "-"} · {formatDateDisplay(item.due_date)}
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1 shrink-0">
+              <span class="text-sm font-bold text-brand-rose">
+                {formatCurrency(item.amount)}
+              </span>
+              <span
+                class="px-2 py-0.5 rounded text-xs font-semibold
+                  {item.status === 'processed'
+                  ? 'bg-brand-emerald/20 text-brand-emerald'
+                  : ''}
+                  {item.status === 'pending'
+                  ? 'bg-brand-cyan/20 text-brand-cyan'
+                  : ''}
+                  {item.status === 'overdue'
+                  ? 'bg-brand-rose/20 text-brand-rose'
+                  : ''}"
+              >
+                {item.status === "processed"
+                  ? "Procesado"
+                  : item.status === "pending"
+                    ? "Pendiente"
+                    : item.status === "overdue"
+                      ? "Vencido"
+                      : item.status}
+              </span>
+            </div>
+          </div>
+        </svelte:fragment>
+      </ResponsiveTable>
     </div>
 
     <div class="card">
@@ -326,46 +352,55 @@
           No hay planes de recordatorio sin ocurrencias.
         </div>
       {:else}
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="border-b border-brand-surface-2">
-              <tr>
-                <th class="text-left py-2 px-3">Titulo</th>
-                <th class="text-left py-2 px-3">Entidad</th>
-                <th class="text-left py-2 px-3">Categoria</th>
-                <th class="text-left py-2 px-3">Caja</th>
-                <th class="text-right py-2 px-3">Monto base</th>
-                <th class="text-left py-2 px-3">Fecha de inicio</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-brand-surface-2">
-              {#each projections.reminders as reminder (reminder.id)}
-                <tr class="hover:bg-brand-surface-2 transition-colors">
-                  <td class="py-3 px-3">{reminder.title}</td>
-                  <td class="py-3 px-3 text-brand-surface-2"
-                    >{reminder.entity_name || "-"}</td
-                  >
-                  <td class="py-3 px-3 text-brand-surface-2"
-                    >{reminder.category_name || "-"}</td
-                  >
-                  <td class="py-3 px-3 text-brand-surface-2"
-                    >{reminder.till_name || "-"}</td
-                  >
-                  <td
-                    class="py-3 px-3 text-right font-semibold text-brand-cyan"
-                  >
-                    {reminder.base_amount === null
-                      ? "Variable"
-                      : formatCurrency(reminder.base_amount)}
-                  </td>
-                  <td class="py-3 px-3"
-                    >{formatDateDisplay(reminder.start_date)}</td
-                  >
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable items={projections.reminders}>
+          <svelte:fragment slot="header">
+            <th class="text-left py-2 px-3">Titulo</th>
+            <th class="text-left py-2 px-3">Entidad</th>
+            <th class="text-left py-2 px-3">Categoria</th>
+            <th class="text-left py-2 px-3">Caja</th>
+            <th class="text-right py-2 px-3">Monto base</th>
+            <th class="text-left py-2 px-3">Fecha de inicio</th>
+          </svelte:fragment>
+          <svelte:fragment slot="row" let:item>
+            <td class="py-3 px-3">{item.title}</td>
+            <td class="py-3 px-3 text-brand-surface-2"
+              >{item.entity_name || "-"}</td
+            >
+            <td class="py-3 px-3 text-brand-surface-2"
+              >{item.category_name || "-"}</td
+            >
+            <td class="py-3 px-3 text-brand-surface-2"
+              >{item.till_name || "-"}</td
+            >
+            <td class="py-3 px-3 text-right font-semibold text-brand-cyan">
+              {item.base_amount === null
+                ? "Variable"
+                : formatCurrency(item.base_amount)}
+            </td>
+            <td class="py-3 px-3">{formatDateDisplay(item.start_date)}</td>
+          </svelte:fragment>
+          <svelte:fragment slot="card" let:item>
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-sm font-semibold truncate">{item.title}</div>
+                <div class="text-xs text-brand-surface-2 mt-0.5">
+                  {item.entity_name || "-"}
+                </div>
+                <div class="text-xs text-brand-surface-2 mt-0.5">
+                  {item.category_name || "-"} · {item.till_name || "-"}
+                </div>
+                <div class="text-xs text-brand-surface-2 mt-0.5">
+                  {formatDateDisplay(item.start_date)}
+                </div>
+              </div>
+              <div class="text-sm font-bold shrink-0 text-brand-cyan">
+                {item.base_amount === null
+                  ? "Variable"
+                  : formatCurrency(item.base_amount)}
+              </div>
+            </div>
+          </svelte:fragment>
+        </ResponsiveTable>
       {/if}
     </div>
   {/if}
