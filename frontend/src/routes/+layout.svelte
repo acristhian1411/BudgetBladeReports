@@ -7,6 +7,7 @@
   import { getCurrentUser } from "$lib/api";
 
   let showMobileMenu = false;
+  let updateAvailable = false;
   let checkingSession = true;
 
   $: isAuthenticated = $authStore.token !== null;
@@ -37,7 +38,7 @@
     }
 
     try {
-      authStore.setToken(token); // Set temporary token for subsequent API calls
+      authStore.setToken(token);
       const meData = await getCurrentUser();
       authStore.setToken(token, meData.user);
     } catch (err) {
@@ -50,13 +51,33 @@
 
   onMount(() => {
     refreshSession();
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data?.type === "UPDATE_AVAILABLE") {
+          updateAvailable = true;
+        }
+      });
+    }
   });
 
   function handleLogout() {
     authStore.logout();
     goto("/login");
   }
+
+  function closeMenu() {
+    showMobileMenu = false;
+  }
+
+  function handleKeydown(event) {
+    if (event.key === "Escape") {
+      showMobileMenu = false;
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 {#if checkingSession}
   <div
@@ -71,9 +92,19 @@
   </div>
 {:else if shouldShowLayout}
   <div class="flex h-screen bg-brand-deep text-white">
+    <!-- Backdrop (mobile only) -->
+    {#if showMobileMenu}
+      <button
+        class="fixed inset-0 z-30 bg-black/50 lg:hidden"
+        aria-label="Cerrar menú"
+        on:click={closeMenu}
+      ></button>
+    {/if}
+
     <!-- Sidebar -->
     <aside
-      class="w-64 bg-brand-surface-1 border-r border-brand-surface-2 flex flex-col"
+      class="fixed inset-y-0 left-0 z-40 w-64 bg-brand-surface-1 border-r border-brand-surface-2 flex flex-col transform transition-transform duration-200 -translate-x-full lg:static lg:translate-x-0"
+      class:translate-x-0={showMobileMenu}
     >
       <!-- Logo -->
       <div class="p-6 border-b border-brand-surface-2">
@@ -82,12 +113,13 @@
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-4 space-y-2">
+      <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
         {#each navItems as item (item.href)}
           <a
             href={item.href}
             class="flex items-center gap-2 px-4 py-2 rounded hover:bg-brand-surface-2 transition-colors"
             class:bg-brand-surface-2={$page.url.pathname.startsWith(item.href)}
+            on:click={closeMenu}
           >
             <span class="text-lg">{item.icon}</span>
             <span>{item.label}</span>
@@ -99,7 +131,7 @@
       <div class="p-4 border-t border-brand-surface-2">
         <div class="text-xs text-brand-surface-2 mb-3">
           {#if $authStore.user?.email}
-            <div>{$authStore.user.email}</div>
+            <div class="truncate">{$authStore.user.email}</div>
           {/if}
         </div>
         <button
@@ -111,10 +143,53 @@
       </div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="flex-1 overflow-auto bg-brand-deep">
-      <slot />
-    </main>
+    <!-- Main column -->
+    <div class="flex flex-1 flex-col min-w-0">
+      <!-- Mobile top bar -->
+      <header
+        class="lg:hidden sticky top-0 z-20 flex items-center justify-between px-4 py-3 bg-brand-surface-1 border-b border-brand-surface-2"
+      >
+        <div class="flex items-center gap-3">
+          <button
+            class="p-2 rounded hover:bg-brand-surface-2 transition-colors"
+            aria-label="Abrir menú"
+            on:click={() => (showMobileMenu = true)}
+          >
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            </svg>
+          </button>
+          <span class="text-lg font-bold text-brand-cyan">Budget Blade</span>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="flex-1 overflow-auto bg-brand-deep">
+        <slot />
+      </main>
+    </div>
+
+    {#if updateAvailable}
+      <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-brand-surface-1 border border-brand-surface-2 rounded-lg shadow-xl">
+        <span class="text-sm">Nueva versión disponible</span>
+        <button
+          class="button-primary text-sm"
+          on:click={() => window.location.reload()}
+        >
+          Recargar
+        </button>
+      </div>
+    {/if}
   </div>
 {:else}
   <slot />
