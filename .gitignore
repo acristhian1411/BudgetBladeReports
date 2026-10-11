@@ -5,4 +5,6 @@ node_modules
 build.log
 *.md
 .svelte-kit
+.svelte-kit.root-owned
+build.root-owned
 build
