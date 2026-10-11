@@ -11,17 +11,27 @@ self.addEventListener('install', (event) => {
 	event.waitUntil(
 		caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
 	);
+	self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
 	event.waitUntil(
-		caches.keys().then((keys) =>
-			Promise.all(
-				keys
-					.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
-					.map((key) => caches.delete(key))
+		caches
+			.keys()
+			.then((keys) =>
+				Promise.all(
+					keys
+						.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+						.map((key) => caches.delete(key))
+				)
 			)
-		)
+			.then(() => self.clients.claim())
+			.then(() => self.clients.matchAll())
+			.then((clients) => {
+				for (const client of clients) {
+					client.postMessage({ type: 'UPDATE_AVAILABLE' });
+				}
+			})
 	);
 });
 
