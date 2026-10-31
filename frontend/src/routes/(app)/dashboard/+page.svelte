@@ -3,6 +3,7 @@
   import { apiGet } from "$lib/api";
   import { formatCurrency, formatDateDisplay } from "$lib/formatting";
   import ResponsiveTable from "$lib/components/ResponsiveTable.svelte";
+  import MobileDashboard from "$lib/components/MobileDashboard.svelte";
 
   let summary = null;
   let loading = true;
@@ -19,7 +20,11 @@
   });
 </script>
 
-<div>
+<div class="md:hidden">
+  <MobileDashboard {summary} {loading} {error} />
+</div>
+
+<div class="hidden md:block">
   <!-- Header -->
   <div>
     <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold">Panel</h1>

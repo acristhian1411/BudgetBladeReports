@@ -27,6 +27,13 @@
     { label: "Sincronizacion", href: "/sync", icon: "⚡" },
   ];
 
+  const mobileNavItems = [
+    { label: "Panel", href: "/dashboard", icon: "📊" },
+    { label: "Movs", href: "/transactions", icon: "💳" },
+    { label: "Cajas", href: "/tills", icon: "💵" },
+    { label: "Compromisos", href: "/compromisos", icon: "📅" },
+  ];
+
   async function refreshSession() {
     if (typeof window === "undefined") return;
 
@@ -68,6 +75,12 @@
 
   function closeMenu() {
     showMobileMenu = false;
+  }
+
+  function isActive(href) {
+    return href === "/dashboard"
+      ? $page.url.pathname === href
+      : $page.url.pathname.startsWith(href);
   }
 
   function handleKeydown(event) {
@@ -174,13 +187,40 @@
       </header>
 
       <!-- Main Content -->
-      <main class="flex-1 overflow-auto bg-brand-deep">
+      <main class="flex-1 overflow-auto bg-brand-deep pb-20 lg:pb-0">
         <slot />
       </main>
     </div>
 
+    <!-- Mobile bottom navigation -->
+    <nav
+      class="lg:hidden fixed bottom-0 left-0 right-0 z-20 bg-brand-surface-1 border-t border-brand-surface-2 pb-[env(safe-area-inset-bottom)]"
+    >
+      <div class="flex">
+        {#each mobileNavItems as item (item.href)}
+          <a
+            href={item.href}
+            class="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px]"
+            class:text-brand-cyan={isActive(item.href)}
+            class:font-semibold={isActive(item.href)}
+            class:text-slate-300={!isActive(item.href)}
+          >
+            <span class="text-lg leading-none">{item.icon}</span>
+            <span>{item.label}</span>
+          </a>
+        {/each}
+        <button
+          class="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] text-slate-300"
+          on:click={() => (showMobileMenu = true)}
+        >
+          <span class="text-lg leading-none">☰</span>
+          <span>Más</span>
+        </button>
+      </div>
+    </nav>
+
     {#if updateAvailable}
-      <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-brand-surface-1 border border-brand-surface-2 rounded-lg shadow-xl">
+      <div class="fixed bottom-20 lg:bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-brand-surface-1 border border-brand-surface-2 rounded-lg shadow-xl">
         <span class="text-sm">Nueva versión disponible</span>
         <button
           class="button-primary text-sm"
