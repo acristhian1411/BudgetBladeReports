@@ -66,6 +66,16 @@ Esta aplicación web es el complemento de escritorio de [BudgetBlade](https://gi
    - **API Backend**: http://localhost:3000/api
    - **Base de datos**: localhost:5432
 
+### Datos de demo
+
+Para poblar una base con datos de ejemplo:
+
+```bash
+docker compose exec backend npm run seed:demo
+```
+
+El comando borra los datos de negocio existentes (conserva usuarios y categorías) y siembra cajas, entidades, tarjetas, transacciones, compromisos y pagos con fechas relativas a hoy. No lo ejecutes sobre una base con datos reales.
+
 ### Aplicación instalable (PWA)
 
 En navegadores compatibles, instala BudgetBlade Reports desde el menú del navegador para abrirla en una ventana independiente. En producción, sirve el frontend desde la raíz del dominio y mediante HTTPS; `localhost` está permitido para desarrollo.
