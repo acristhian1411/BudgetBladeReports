@@ -29,14 +29,13 @@ router.get('/summary', async (req, res, next) => {
 
     // Spending by category
     const byCategory = await db.query(`
-      SELECT c.name, c.type, SUM(t.amount) as total
+      SELECT c.name, c.type, SUM(t.amount) as total, COUNT(t.id) as count
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE t.type = 'egreso'
         AND t.deleted_at IS NULL
       GROUP BY c.id, c.name, c.type
       ORDER BY total DESC
-      LIMIT 10
     `);
 
     // Income by category
@@ -132,13 +131,25 @@ router.get('/summary', async (req, res, next) => {
         AND tl.deleted_at IS NULL
     `);
 
+    // Income and expense totals (transfers move balances, they are not income)
+    const totals = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN type = 'ingreso' THEN amount END), 0) AS income,
+        COALESCE(SUM(CASE WHEN type = 'egreso' THEN amount END), 0) AS expense
+      FROM transactions
+      WHERE deleted_at IS NULL
+    `);
+
     res.json({
       totalBalance: parseFloat(totalBalance.rows[0]?.total || 0),
       availableCash: parseFloat(availableCash.rows[0]?.total || 0),
+      totalIncome: parseFloat(totals.rows[0]?.income || 0),
+      totalExpense: parseFloat(totals.rows[0]?.expense || 0),
       byCategory: byCategory.rows.map(row => ({
         name: row.name,
         type: row.type,
         total: parseFloat(row.total),
+        count: parseInt(row.count, 10),
       })),
       incomeByCategory: incomeByCategory.rows.map(row => ({
         name: row.name,
