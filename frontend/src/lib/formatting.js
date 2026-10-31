@@ -1,12 +1,20 @@
 /**
- * Format number as currency (USD)
+ * Format number as currency (guaraníes, no decimals)
  */
 export function formatCurrency(value) {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('es-PY', {
     style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    currency: 'PYG',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+/**
+ * Format number without currency symbol (guaraníes, no decimals)
+ */
+export function formatNumber(value) {
+  return new Intl.NumberFormat('es-PY', {
+    maximumFractionDigits: 0,
   }).format(value);
 }
 
