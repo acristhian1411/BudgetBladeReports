@@ -67,6 +67,8 @@
             class="input-field"
             placeholder="tu@email.com o cédula"
             autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
             required
           />
         </div>
@@ -85,6 +87,7 @@
             disabled={loading}
             class="input-field"
             placeholder="••••••••"
+            autocomplete="current-password"
             required
           />
         </div>
