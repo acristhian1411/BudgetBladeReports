@@ -39,6 +39,8 @@ Esta aplicación web es el complemento de escritorio de [BudgetBlade](https://gi
 
 - Login mediante OAuth2 delegado a un servidor Laravel externo.
 - Sesión protegida con middleware en todas las rutas de la API.
+- **Multi-usuario**: cada movimiento, caja, entidad, tarjeta y categoría pertenece al usuario autenticado que lo creó. Las consultas, escrituras, la sincronización y la importación de backups están aisladas por usuario.
+- Las categorías por defecto se crean para cada usuario en su primer login.
 
 ## 🚀 Cómo Empezar
 
@@ -74,7 +76,7 @@ Para poblar una base con datos de ejemplo:
 docker compose exec backend npm run seed:demo
 ```
 
-El comando borra los datos de negocio existentes (conserva usuarios y categorías) y siembra cajas, entidades, tarjetas, transacciones, compromisos y pagos con fechas relativas a hoy. No lo ejecutes sobre una base con datos reales.
+El comando borra los datos de negocio del usuario demo (conserva usuarios y categorías) y siembra cajas, entidades, tarjetas, transacciones, compromisos y pagos con fechas relativas a hoy. Por defecto usa el usuario `demo`; se puede cambiar con `SEED_USER_ID=<id>`. No lo ejecutes sobre una base con datos reales.
 
 ### Aplicación instalable (PWA)
 
