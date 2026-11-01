@@ -1,6 +1,8 @@
 import { authStore } from './stores.js';
 
-const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000') + '/api';
+const API_BASE = import.meta.env.DEV
+  ? '/api'
+  : `${(import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')}/api`;
 
 let currentToken = null;
 
@@ -150,4 +152,3 @@ export async function getCurrentUser() {
 export async function changePassword(body) {
   return apiPost('/auth/change-password', body);
 }
-
