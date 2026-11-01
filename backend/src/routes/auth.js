@@ -1,5 +1,5 @@
 import express from 'express';
-import { getUserFromToken, loginWithLaravel } from '../services/laravelAuth.js';
+import { changeLaravelPassword, getUserFromToken, loginWithLaravel } from '../services/laravelAuth.js';
 import { ensureUserCategories } from '../db/defaults.js';
 
 function getBearerToken(authorizationHeader) {
@@ -42,6 +42,21 @@ export function authRouter() {
     } catch (error) {
       const status = error.status || 401;
       return res.status(status).json({ error: error.message || 'Login failed' });
+    }
+  });
+
+  router.post('/change-password', async (req, res) => {
+    const token = getBearerToken(req.headers.authorization);
+    if (!token) {
+      return res.status(401).json({ error: 'Missing bearer token' });
+    }
+
+    try {
+      const data = await changeLaravelPassword(token, req.body ?? {});
+      return res.status(200).json(data);
+    } catch (error) {
+      const status = error.status || 502;
+      return res.status(status).json({ error: error.message || 'Password change failed' });
     }
   });
 

@@ -4,10 +4,14 @@ function getAuthConfig() {
   const authBaseUrl = (process.env.AUTH_BASE_URL || 'http://localhost').trim();
   const authTokenUrl = (process.env.AUTH_TOKEN_URL || `${authBaseUrl}/oauth/token`).trim();
   const authUserInfoUrl = (process.env.AUTH_USERINFO_URL || `${authBaseUrl}/api/user`).trim();
+  const authPasswordUrl = (
+    process.env.AUTH_PASSWORD_URL || `${authBaseUrl}/api/mobile/password`
+  ).trim();
 
   return {
     authTokenUrl,
     authUserInfoUrl,
+    authPasswordUrl,
     authClientId: (process.env.AUTH_CLIENT_ID || '').trim(),
     authClientSecret: (process.env.AUTH_CLIENT_SECRET || '').trim(),
     authScope: process.env.AUTH_SCOPE || '',
@@ -111,6 +115,33 @@ export async function getUserFromToken(token) {
   }
 
   setCacheEntry(token, data);
+  return data;
+}
+
+export async function changeLaravelPassword(token, payload) {
+  const { authPasswordUrl } = getAuthConfig();
+
+  const response = await fetch(authPasswordUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    // Laravel returns 422 with { message, errors: { field: [msg] } }.
+    const firstFieldError = Object.values(data.errors ?? {})[0]?.[0];
+    const err = new Error(
+      firstFieldError || data.message || data.error || 'Password change failed'
+    );
+    err.status = response.status;
+    throw err;
+  }
+
   return data;
 }
 
