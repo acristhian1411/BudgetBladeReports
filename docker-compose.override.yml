@@ -9,5 +9,7 @@ services:
   frontend:
     environment:
       NODE_ENV: development
-      VITE_API_URL: http://localhost:3000
+      # Empty base = same-origin /api, forwarded by the Vite proxy below.
+      VITE_API_URL: ""
+      VITE_PROXY_TARGET: http://backend:3000
     command: sh -c "npm install && npm run dev"
