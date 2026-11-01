@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { stampNew, withTransaction } from '../services/write.js';
+import { stampNew, withTransaction, isOwnedRow } from '../services/write.js';
 import { parseBody } from '../utils/validate.js';
 
 const router = express.Router();
@@ -48,8 +48,8 @@ const insertTxn = (queryable, row) =>
     `INSERT INTO transactions
        (till_id, amount, type, description, transfer_id, transaction_date,
         category_id, payment_method, credit_card_id, affects_balance,
-        parent_transaction_id, uuid, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        parent_transaction_id, user_id, uuid, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      RETURNING id`,
     [
       row.till_id,
@@ -63,17 +63,18 @@ const insertTxn = (queryable, row) =>
       row.credit_card_id ?? null,
       row.affects_balance ?? 1,
       row.parent_transaction_id ?? null,
+      row.user_id,
       row.uuid,
       row.updated_at,
     ],
   );
 
-const getCategoryIdByName = async (db, categoryName) => {
+const getCategoryIdByName = async (db, categoryName, userId) => {
   const row = await db.query(
     `SELECT id FROM categories
-      WHERE type = 'expense' AND LOWER(name) = LOWER($1) AND deleted_at IS NULL
+      WHERE type = 'expense' AND LOWER(name) = LOWER($1) AND user_id = $2 AND deleted_at IS NULL
       LIMIT 1`,
-    [categoryName],
+    [categoryName, userId],
   );
   return row.rows[0]?.id ?? null;
 };
@@ -91,8 +92,8 @@ router.get('/', async (req, res, next) => {
 
     let query = 'SELECT transactions.*, categories.name as category_name, tills.name as till_name FROM transactions ' +
           'LEFT JOIN categories ON transactions.category_id = categories.id ' +
-          'LEFT JOIN tills ON transactions.till_id = tills.id WHERE transactions.deleted_at IS NULL';
-    const params = [];
+          'LEFT JOIN tills ON transactions.till_id = tills.id WHERE transactions.deleted_at IS NULL AND transactions.user_id = $1';
+    const params = [req.userId];
     let from_date = start_date ? new Date(start_date).toISOString() : null;
     if (start_date) {
       query += ` AND transactions.transaction_date >= $${params.length + 1}::date`;
@@ -125,8 +126,8 @@ router.get('/', async (req, res, next) => {
     const transactions = await db.query(query, params);
 
     // Get total count
-    let countQuery = 'SELECT COUNT(*) as total FROM transactions WHERE deleted_at IS NULL';
-    const countParams = [];
+    let countQuery = 'SELECT COUNT(*) as total FROM transactions WHERE deleted_at IS NULL AND user_id = $1';
+    const countParams = [req.userId];
     if (start_date) {
       countQuery += ` AND transaction_date >= $${countParams.length + 1}::date`;
       countParams.push(from_date);
@@ -178,6 +179,16 @@ router.post('/', async (req, res, next) => {
 
   try {
     const db = req.app.locals.db;
+    if (!(await isOwnedRow(db, 'tills', data.till_id, req.userId))) {
+      return res.status(404).json({ error: 'Till not found' });
+    }
+    if (data.category_id != null && !(await isOwnedRow(db, 'categories', data.category_id, req.userId))) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    if (data.credit_card_id != null && !(await isOwnedRow(db, 'credit_cards', data.credit_card_id, req.userId))) {
+      return res.status(404).json({ error: 'Credit card not found' });
+    }
+
     const row = stampNew({
       till_id: data.till_id,
       amount: Math.abs(data.amount),
@@ -188,7 +199,7 @@ router.post('/', async (req, res, next) => {
       payment_method: data.payment_method ?? null,
       credit_card_id: data.credit_card_id ?? null,
       affects_balance: data.affects_balance ?? 1,
-    });
+    }, req.userId);
 
     const result = await insertTxn(db, row);
     res.status(201).json({ id: result.rows[0].id, ...row });
@@ -211,6 +222,13 @@ router.post('/transfer', async (req, res, next) => {
 
   try {
     const db = req.app.locals.db;
+    if (!(await isOwnedRow(db, 'tills', data.from_till_id, req.userId))) {
+      return res.status(404).json({ error: 'Till not found' });
+    }
+    if (!(await isOwnedRow(db, 'tills', data.to_till_id, req.userId))) {
+      return res.status(404).json({ error: 'Till not found' });
+    }
+
     const transferId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const amount = Math.abs(data.amount);
     const description = data.description ?? '';
@@ -225,7 +243,7 @@ router.post('/transfer', async (req, res, next) => {
         transaction_date: data.date,
         payment_method: 'transfer',
         affects_balance: 1,
-      }));
+      }, req.userId));
       const dest = await insertTxn(client, stampNew({
         till_id: data.to_till_id,
         amount,
@@ -235,7 +253,7 @@ router.post('/transfer', async (req, res, next) => {
         transaction_date: data.date,
         payment_method: 'transfer',
         affects_balance: 1,
-      }));
+      }, req.userId));
       return { from_id: source.rows[0].id, to_id: dest.rows[0].id };
     });
 
@@ -261,8 +279,20 @@ router.post('/credit-card-payment', async (req, res, next) => {
 
   try {
     const db = req.app.locals.db;
-    const paymentCategoryId = await getCategoryIdByName(db, 'Pago de tarjetas');
-    const interestCategoryId = await getCategoryIdByName(db, 'Intereses de tarjeta');
+    if (!(await isOwnedRow(db, 'tills', data.till_id, req.userId))) {
+      return res.status(404).json({ error: 'Till not found' });
+    }
+    if (!(await isOwnedRow(db, 'credit_cards', data.credit_card_id, req.userId))) {
+      return res.status(404).json({ error: 'Credit card not found' });
+    }
+    for (const item of paymentItems) {
+      if (!(await isOwnedRow(db, 'transactions', Number(item.purchase_transaction_id), req.userId))) {
+        return res.status(404).json({ error: 'Purchase transaction not found' });
+      }
+    }
+
+    const paymentCategoryId = await getCategoryIdByName(db, 'Pago de tarjetas', req.userId);
+    const interestCategoryId = await getCategoryIdByName(db, 'Intereses de tarjeta', req.userId);
 
     const result = await withTransaction(db, async (client) => {
       const capitalRes = await insertTxn(client, stampNew({
@@ -275,7 +305,7 @@ router.post('/credit-card-payment', async (req, res, next) => {
         payment_method: paymentMethod,
         credit_card_id: data.credit_card_id,
         affects_balance: 1,
-      }));
+      }, req.userId));
       const capitalTransactionId = capitalRes.rows[0].id;
       let interestTransactionId = null;
 
@@ -291,7 +321,7 @@ router.post('/credit-card-payment', async (req, res, next) => {
           credit_card_id: data.credit_card_id,
           affects_balance: 1,
           parent_transaction_id: capitalTransactionId,
-        }));
+        }, req.userId));
         interestTransactionId = interestRes.rows[0].id;
       }
 
@@ -305,17 +335,18 @@ router.post('/credit-card-payment', async (req, res, next) => {
           purchase_transaction_id: purchaseTransactionId,
           payment_transaction_id: capitalTransactionId,
           amount_paid: amountPaid,
-        });
+        }, req.userId);
         await client.query(
           `INSERT INTO credit_card_payment_items
              (credit_card_id, purchase_transaction_id, payment_transaction_id,
-              amount_paid, uuid, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+              amount_paid, user_id, uuid, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             itemRow.credit_card_id,
             itemRow.purchase_transaction_id,
             itemRow.payment_transaction_id,
             itemRow.amount_paid,
+            itemRow.user_id,
             itemRow.uuid,
             itemRow.updated_at,
           ],
@@ -350,8 +381,9 @@ router.delete('/:id', async (req, res, next) => {
 
     const result = await withTransaction(db, async (client) => {
       const row = await client.query(
-        'SELECT transfer_id FROM transactions WHERE id = $1 AND deleted_at IS NULL',
-        [id],
+        `SELECT transfer_id FROM transactions
+          WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [id, req.userId],
       );
       if (row.rowCount === 0) return { deleted: 0 };
 
@@ -362,14 +394,15 @@ router.delete('/:id', async (req, res, next) => {
           `UPDATE credit_card_payment_items
               SET deleted_at = now(), updated_at = now()
             WHERE deleted_at IS NULL
-              AND (purchase_transaction_id IN (SELECT id FROM transactions WHERE transfer_id = $1)
-                   OR payment_transaction_id IN (SELECT id FROM transactions WHERE transfer_id = $1))`,
-          [transferId],
+              AND user_id = $2
+              AND (purchase_transaction_id IN (SELECT id FROM transactions WHERE transfer_id = $1 AND user_id = $2)
+                   OR payment_transaction_id IN (SELECT id FROM transactions WHERE transfer_id = $1 AND user_id = $2))`,
+          [transferId, req.userId],
         );
         const res = await client.query(
           `UPDATE transactions SET deleted_at = now(), updated_at = now()
-            WHERE transfer_id = $1 AND deleted_at IS NULL`,
-          [transferId],
+            WHERE transfer_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+          [transferId, req.userId],
         );
         return { deleted: res.rowCount };
       }
@@ -378,13 +411,14 @@ router.delete('/:id', async (req, res, next) => {
         `UPDATE credit_card_payment_items
             SET deleted_at = now(), updated_at = now()
           WHERE deleted_at IS NULL
+            AND user_id = $2
             AND (purchase_transaction_id = $1 OR payment_transaction_id = $1)`,
-        [id],
+        [id, req.userId],
       );
       const res = await client.query(
         `UPDATE transactions SET deleted_at = now(), updated_at = now()
-          WHERE id = $1 AND deleted_at IS NULL`,
-        [id],
+          WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [id, req.userId],
       );
       return { deleted: res.rowCount };
     });

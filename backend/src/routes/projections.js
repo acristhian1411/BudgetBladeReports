@@ -23,10 +23,12 @@ router.get('/', async (req, res, next) => {
       FROM tills tl
       LEFT JOIN transactions t
         ON t.till_id = tl.id
+        AND t.user_id = $1
         AND COALESCE(t.affects_balance, 1) = 1
         AND t.deleted_at IS NULL
       WHERE tl.deleted_at IS NULL
-    `);
+        AND tl.user_id = $1
+    `, [req.userId]);
     const initialBalance = parseFloat(liquidityResult.rows[0]?.total || 0);
 
     // Get all scheduled occurrences
@@ -46,9 +48,11 @@ router.get('/', async (req, res, next) => {
       LEFT JOIN entities e ON sp.entity_id = e.id
       where sp.type = 'egreso'
         AND so.deleted_at IS NULL
+        AND so.user_id = $1
         AND sp.deleted_at IS NULL
+        AND sp.user_id = $1
       ORDER BY so.due_date ASC
-    `);
+    `, [req.userId]);
 
     // Scheduled plans that work as reminders and still have no occurrences
     const reminders = await db.query(`
@@ -73,8 +77,9 @@ router.get('/', async (req, res, next) => {
       )
       and sp.type = 'egreso'
         AND sp.deleted_at IS NULL
+        AND sp.user_id = $1
       ORDER BY sp.start_date ASC, sp.id ASC
-    `);
+    `, [req.userId]);
 
     // Calculate liquidity forecast (180 days)
     // For partially_paid occurrences, use remaining_amount instead of amount

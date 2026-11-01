@@ -1,6 +1,12 @@
 import express from 'express';
 import { z } from 'zod';
-import { stampNew, updateRow, softDeleteRow, withTransaction } from '../services/write.js';
+import {
+  stampNew,
+  updateRow,
+  softDeleteRow,
+  withTransaction,
+  isOwnedRow,
+} from '../services/write.js';
 import { parseBody } from '../utils/validate.js';
 
 const router = express.Router();
@@ -30,6 +36,7 @@ router.get('/', async (req, res, next) => {
           SELECT SUM(t.amount)
           FROM transactions t
           WHERE t.credit_card_id = cc.id
+            AND t.user_id = $1
             AND t.type = 'egreso'
             AND t.payment_method = 'credit_card'
             AND t.deleted_at IS NULL
@@ -38,13 +45,15 @@ router.get('/', async (req, res, next) => {
           SELECT SUM(ccpi.amount_paid)
           FROM credit_card_payment_items ccpi
           WHERE ccpi.credit_card_id = cc.id
+            AND ccpi.user_id = $1
             AND ccpi.deleted_at IS NULL
         ), 0) AS total_paid
       FROM credit_cards cc
-      LEFT JOIN tills tl ON tl.id = cc.till_id
+      LEFT JOIN tills tl ON tl.id = cc.till_id AND tl.user_id = $1
       WHERE cc.deleted_at IS NULL
+        AND cc.user_id = $1
       ORDER BY tl.name ASC, cc.name ASC
-    `);
+    `, [req.userId]);
 
     res.json(
       result.rows.map((row) => ({
@@ -75,6 +84,10 @@ router.get('/:id/purchases', async (req, res, next) => {
 
   try {
     const db = req.app.locals.db;
+    if (!(await isOwnedRow(db, 'credit_cards', id, req.userId))) {
+      return res.status(404).json({ error: 'Credit card not found' });
+    }
+
     const result = await db.query(`
       SELECT
         t.id,
@@ -87,16 +100,17 @@ router.get('/:id/purchases', async (req, res, next) => {
       LEFT JOIN (
         SELECT purchase_transaction_id, SUM(amount_paid) AS paid
         FROM credit_card_payment_items
-        WHERE deleted_at IS NULL
+        WHERE deleted_at IS NULL AND user_id = $2
         GROUP BY purchase_transaction_id
       ) p ON p.purchase_transaction_id = t.id
       WHERE t.credit_card_id = $1
+        AND t.user_id = $2
         AND t.type = 'egreso'
         AND t.payment_method = 'credit_card'
         AND t.deleted_at IS NULL
         AND (t.amount - COALESCE(p.paid, 0)) > 0
       ORDER BY t.transaction_date ASC, t.id ASC
-    `, [id]);
+    `, [id, req.userId]);
 
     res.json(
       result.rows.map((row) => ({
@@ -122,17 +136,21 @@ router.post('/', async (req, res, next) => {
 
   try {
     const db = req.app.locals.db;
+    if (!(await isOwnedRow(db, 'tills', data.till_id, req.userId))) {
+      return res.status(404).json({ error: 'Till not found' });
+    }
+
     const row = stampNew({
       till_id: data.till_id,
       name: data.name,
       credit_limit: data.credit_limit ?? 0,
-    });
+    }, req.userId);
 
     const result = await db.query(
-      `INSERT INTO credit_cards (till_id, name, credit_limit, uuid, updated_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO credit_cards (till_id, name, credit_limit, user_id, uuid, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id`,
-      [row.till_id, row.name, row.credit_limit, row.uuid, row.updated_at],
+      [row.till_id, row.name, row.credit_limit, row.user_id, row.uuid, row.updated_at],
     );
 
     res.status(201).json({ id: result.rows[0].id, ...row });
@@ -154,12 +172,17 @@ router.put('/:id', async (req, res, next) => {
   }
 
   try {
+    const db = req.app.locals.db;
+    if (data.till_id !== undefined && !(await isOwnedRow(db, 'tills', data.till_id, req.userId))) {
+      return res.status(404).json({ error: 'Till not found' });
+    }
+
     const changes = {};
     if (data.till_id !== undefined) changes.till_id = data.till_id;
     if (data.name !== undefined) changes.name = data.name;
     if (data.credit_limit !== undefined) changes.credit_limit = data.credit_limit;
 
-    const updated = await updateRow(req.app.locals.db, 'credit_cards', id, changes);
+    const updated = await updateRow(db, 'credit_cards', id, changes, req.userId);
     if (updated === 0) return res.status(404).json({ error: 'Credit card not found' });
     res.json({ id });
   } catch (error) {
@@ -183,10 +206,10 @@ router.delete('/:id', async (req, res, next) => {
       await client.query(
         `UPDATE credit_card_payment_items
             SET deleted_at = now(), updated_at = now()
-          WHERE credit_card_id = $1 AND deleted_at IS NULL`,
-        [id],
+          WHERE credit_card_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [id, req.userId],
       );
-      return softDeleteRow(client, 'credit_cards', id);
+      return softDeleteRow(client, 'credit_cards', id, req.userId);
     });
 
     if (deleted === 0) return res.status(404).json({ error: 'Credit card not found' });

@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { stampNew, withTransaction, updateRow } from '../services/write.js';
+import { stampNew, withTransaction, updateRow, isOwnedRow } from '../services/write.js';
 import { parseBody } from '../utils/validate.js';
 
 const router = express.Router();
@@ -84,9 +84,10 @@ router.get('/plans', async (req, res, next) => {
       LEFT JOIN tills tl ON tl.id = sp.till_id
       LEFT JOIN scheduled_occurrences so ON so.plan_id = sp.id AND so.deleted_at IS NULL
       WHERE sp.deleted_at IS NULL
+        AND sp.user_id = $1
       GROUP BY sp.id, e.name, c.name, tl.name
       ORDER BY sp.start_date DESC
-    `);
+    `, [req.userId]);
 
     res.json(
       result.rows.map((row) => ({
@@ -119,8 +120,8 @@ router.get('/plans/:id', async (req, res, next) => {
          LEFT JOIN entities e ON e.id = sp.entity_id
          LEFT JOIN categories c ON c.id = sp.category_id
          LEFT JOIN tills tl ON tl.id = sp.till_id
-        WHERE sp.id = $1 AND sp.deleted_at IS NULL`,
-      [id],
+        WHERE sp.id = $1 AND sp.user_id = $2 AND sp.deleted_at IS NULL`,
+      [id, req.userId],
     );
     if (plan.rowCount === 0) return res.status(404).json({ error: 'Plan not found' });
 
@@ -137,9 +138,9 @@ router.get('/plans/:id', async (req, res, next) => {
          so.transaction_id,
          ${EFFECTIVE_STATUS} AS effective_status
        FROM scheduled_occurrences so
-       WHERE so.plan_id = $1 AND so.deleted_at IS NULL
+       WHERE so.plan_id = $1 AND so.user_id = $2 AND so.deleted_at IS NULL
        ORDER BY so.installment_number ASC, so.due_date ASC`,
-      [id],
+      [id, req.userId],
     );
 
     res.json({
@@ -172,6 +173,15 @@ router.post('/plans', async (req, res, next) => {
 
   try {
     const db = req.app.locals.db;
+    for (const [table, value] of [
+      ['categories', data.category_id],
+      ['entities', data.entity_id],
+      ['tills', data.till_id],
+    ]) {
+      if (value != null && !(await isOwnedRow(db, table, value, req.userId))) {
+        return res.status(404).json({ error: `${table.slice(0, -1)} not found` });
+      }
+    }
 
     const result = await withTransaction(db, async (client) => {
       const planRow = stampNew({
@@ -183,13 +193,13 @@ router.post('/plans', async (req, res, next) => {
         total_installments: totalInstallments,
         start_date: data.start_date,
         type: normalizedType,
-      });
+      }, req.userId);
 
       const planResult = await client.query(
         `INSERT INTO scheduled_plans
            (category_id, entity_id, till_id, title, base_amount,
-            total_installments, start_date, type, uuid, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            total_installments, start_date, type, user_id, uuid, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING id`,
         [
           planRow.category_id,
@@ -200,6 +210,7 @@ router.post('/plans', async (req, res, next) => {
           planRow.total_installments,
           planRow.start_date,
           planRow.type,
+          planRow.user_id,
           planRow.uuid,
           planRow.updated_at,
         ],
@@ -218,12 +229,12 @@ router.post('/plans', async (req, res, next) => {
             amount: baseAmount,
             remaining_amount: baseAmount,
             status: 'pending',
-          });
+          }, req.userId);
           await client.query(
             `INSERT INTO scheduled_occurrences
                (plan_id, installment_number, due_date, type, amount,
-                remaining_amount, status, uuid, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                remaining_amount, status, user_id, uuid, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
             [
               occ.plan_id,
               occ.installment_number,
@@ -232,6 +243,7 @@ router.post('/plans', async (req, res, next) => {
               occ.amount,
               occ.remaining_amount,
               occ.status,
+              occ.user_id,
               occ.uuid,
               occ.updated_at,
             ],
@@ -261,13 +273,13 @@ router.delete('/plans/:id', async (req, res, next) => {
     const deleted = await withTransaction(db, async (client) => {
       await client.query(
         `UPDATE scheduled_occurrences SET deleted_at = now(), updated_at = now()
-          WHERE plan_id = $1 AND deleted_at IS NULL`,
-        [id],
+          WHERE plan_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [id, req.userId],
       );
       const res = await client.query(
         `UPDATE scheduled_plans SET deleted_at = now(), updated_at = now()
-          WHERE id = $1 AND deleted_at IS NULL`,
-        [id],
+          WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [id, req.userId],
       );
       return res.rowCount;
     });
@@ -297,7 +309,9 @@ router.patch('/occurrences/:id', async (req, res, next) => {
   if (Object.prototype.hasOwnProperty.call(data, 'status') && data.status !== undefined) changes.status = data.status;
 
   try {
-    const updated = await updateRow(req.app.locals.db, 'scheduled_occurrences', id, changes);
+    const updated = await updateRow(
+      req.app.locals.db, 'scheduled_occurrences', id, changes, req.userId,
+    );
     if (updated === 0) return res.status(404).json({ error: 'Occurrence not found' });
     res.json({ id });
   } catch (error) {
@@ -321,12 +335,23 @@ router.post('/occurrences/:id/payment', async (req, res, next) => {
 
   try {
     const db = req.app.locals.db;
+    if (!(await isOwnedRow(db, 'tills', data.till_id, req.userId))) {
+      return res.status(404).json({ error: 'Till not found' });
+    }
+    if (data.category_id != null && !(await isOwnedRow(db, 'categories', data.category_id, req.userId))) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
     const occurrence = await db.query(
       `SELECT so.*, sp.title
          FROM scheduled_occurrences so
          JOIN scheduled_plans sp ON sp.id = so.plan_id
-        WHERE so.id = $1 AND so.deleted_at IS NULL AND sp.deleted_at IS NULL`,
-      [id],
+        WHERE so.id = $1
+          AND so.user_id = $2
+          AND sp.user_id = $2
+          AND so.deleted_at IS NULL
+          AND sp.deleted_at IS NULL`,
+      [id, req.userId],
     );
     if (occurrence.rowCount === 0) return res.status(404).json({ error: 'Occurrence not found' });
 
@@ -355,12 +380,12 @@ router.post('/occurrences/:id/payment', async (req, res, next) => {
         transaction_date: data.date,
         category_id: data.category_id ?? null,
         affects_balance: 1,
-      });
+      }, req.userId);
       const txnResult = await client.query(
         `INSERT INTO transactions
            (till_id, amount, type, description, transaction_date, category_id,
-            affects_balance, uuid, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            affects_balance, user_id, uuid, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING id`,
         [
           txn.till_id,
@@ -370,6 +395,7 @@ router.post('/occurrences/:id/payment', async (req, res, next) => {
           txn.transaction_date,
           txn.category_id,
           txn.affects_balance,
+          txn.user_id,
           txn.uuid,
           txn.updated_at,
         ],
@@ -381,16 +407,17 @@ router.post('/occurrences/:id/payment', async (req, res, next) => {
         transaction_id: transactionId,
         amount_paid: paid,
         payment_date: data.date,
-      });
+      }, req.userId);
       await client.query(
         `INSERT INTO scheduled_payments_mapping
-           (occurrence_id, transaction_id, amount_paid, payment_date, uuid, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+           (occurrence_id, transaction_id, amount_paid, payment_date, user_id, uuid, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           mapping.occurrence_id,
           mapping.transaction_id,
           mapping.amount_paid,
           mapping.payment_date,
+          mapping.user_id,
           mapping.uuid,
           mapping.updated_at,
         ],
@@ -402,8 +429,8 @@ router.post('/occurrences/:id/payment', async (req, res, next) => {
                 status = $2,
                 transaction_id = CASE WHEN transaction_id IS NULL THEN $3 ELSE transaction_id END,
                 updated_at = now()
-          WHERE id = $4`,
-        [nextRemaining, nextStatus, transactionId, id],
+          WHERE id = $4 AND user_id = $5`,
+        [nextRemaining, nextStatus, transactionId, id, req.userId],
       );
 
       return { transaction_id: transactionId, remaining_amount: nextRemaining, status: nextStatus };
@@ -437,10 +464,12 @@ router.get('/occurrences/:id/payments', async (req, res, next) => {
        FROM scheduled_payments_mapping spm
        JOIN transactions t ON t.id = spm.transaction_id
        WHERE spm.occurrence_id = $1
+         AND spm.user_id = $2
+         AND t.user_id = $2
          AND spm.deleted_at IS NULL
          AND t.deleted_at IS NULL
        ORDER BY spm.payment_date ASC, spm.id ASC`,
-      [id],
+      [id, req.userId],
     );
 
     res.json(
@@ -479,9 +508,11 @@ router.get('/occurrences', async (req, res, next) => {
       LEFT JOIN categories c ON c.id = sp.category_id
       WHERE so.status IN ('pending', 'partially_paid', 'overdue')
         AND so.deleted_at IS NULL
+        AND so.user_id = $1
         AND sp.deleted_at IS NULL
+        AND sp.user_id = $1
       ORDER BY so.due_date ASC
-    `);
+    `, [req.userId]);
 
     res.json(
       result.rows.map((row) => ({

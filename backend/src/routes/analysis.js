@@ -39,12 +39,14 @@ router.get('/', async (req, res, next) => {
       FROM tills tl
       LEFT JOIN transactions t
         ON t.till_id = tl.id
+        AND t.user_id = $1
         AND COALESCE(t.affects_balance, 1) = 1
         AND t.deleted_at IS NULL
       WHERE tl.deleted_at IS NULL
+        AND tl.user_id = $1
       GROUP BY tl.id, tl.name, tl.is_bank
       ORDER BY tl.name ASC
-    `);
+    `, [req.userId]);
 
     // Filter by till_types
     let filteredTills = tillsResult.rows;
@@ -61,7 +63,7 @@ router.get('/', async (req, res, next) => {
     let creditCardsLimitsTotal = 0;
     let creditCardsData = [];
     
-    if (includeCreditCards) {
+    if (includeCreditCards && filteredTills.length > 0) {
       const cardsResult = await db.query(`
         SELECT
           cc.id,
@@ -76,6 +78,7 @@ router.get('/', async (req, res, next) => {
                 AND t.affects_balance = 0
                 AND t.type = 'egreso'
                 AND t.deleted_at IS NULL
+                AND t.user_id = $1
             ), 0
           ) AS total_charged,
           COALESCE(
@@ -84,12 +87,14 @@ router.get('/', async (req, res, next) => {
               FROM credit_card_payment_items ccpi
               WHERE ccpi.credit_card_id = cc.id
                 AND ccpi.deleted_at IS NULL
+                AND ccpi.user_id = $1
             ), 0
           ) AS total_paid
         FROM credit_cards cc
         WHERE cc.till_id IN (${filteredTills.map(t => t.id).join(',')})
+          AND cc.user_id = $1
           AND cc.deleted_at IS NULL
-      `);
+      `, [req.userId]);
 
       creditCardsData = cardsResult.rows.map(row => ({
         card_id: row.id,
@@ -135,10 +140,12 @@ router.get('/', async (req, res, next) => {
         (so.due_date::date < CURRENT_DATE AND so.status IN ('pending', 'partially_paid', 'overdue'))
       )
       AND so.deleted_at IS NULL
+      AND so.user_id = $1
       AND sp.deleted_at IS NULL
+      AND sp.user_id = $1
       ${statusFilter}
       ORDER BY so.due_date ASC
-    `);
+    `, [req.userId]);
 
     const commitments = commitmentsResult.rows.map(row => ({
       ...row,
@@ -312,7 +319,8 @@ router.get('/', async (req, res, next) => {
       AND sp.base_amount = 0
       AND sp.type = 'egreso'
       AND sp.deleted_at IS NULL
-    `);
+      AND sp.user_id = $1
+    `, [req.userId]);
 
     const variableCommitments = variablePlansResult.rows.map(row => ({
       ...row,

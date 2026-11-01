@@ -25,7 +25,8 @@ router.get('/summary', async (req, res, next) => {
       FROM transactions
       WHERE COALESCE(affects_balance, 1) = 1
         AND deleted_at IS NULL
-    `);
+        AND user_id = $1
+    `, [req.userId]);
 
     // Spending by category
     const byCategory = await db.query(`
@@ -34,9 +35,10 @@ router.get('/summary', async (req, res, next) => {
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE t.type = 'egreso'
         AND t.deleted_at IS NULL
+        AND t.user_id = $1
       GROUP BY c.id, c.name, c.type
       ORDER BY total DESC
-    `);
+    `, [req.userId]);
 
     // Income by category
     const incomeByCategory = await db.query(`
@@ -45,10 +47,11 @@ router.get('/summary', async (req, res, next) => {
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE (t.type = 'ingreso' or t.type = 'transferencia') 
         AND t.deleted_at IS NULL
+        AND t.user_id = $1
       GROUP BY c.id, c.name, c.type
       ORDER BY total DESC
       LIMIT 10
-    `);
+    `, [req.userId]);
 
     // Recent transactions
     const recentTransactions = await db.query(`
@@ -64,9 +67,10 @@ router.get('/summary', async (req, res, next) => {
       LEFT JOIN categories c ON t.category_id = c.id
       LEFT JOIN tills tl ON t.till_id = tl.id
       WHERE t.deleted_at IS NULL
+        AND t.user_id = $1
       ORDER BY t.transaction_date DESC
       LIMIT 10
-    `);
+    `, [req.userId]);
 
     // Upcoming commitments
     const upcomingCommitments = await db.query(`
@@ -83,10 +87,12 @@ router.get('/summary', async (req, res, next) => {
       LEFT JOIN entities e ON sp.entity_id = e.id
       WHERE so.status IN ('pending', 'partially_paid', 'overdue')
         AND so.deleted_at IS NULL
+        AND so.user_id = $1
         AND sp.deleted_at IS NULL
+        AND sp.user_id = $1
       ORDER BY so.due_date ASC
       LIMIT 5
-    `);
+    `, [req.userId]);
 
     // Balance per till (excludes credit card charges, affects_balance = 0)
     const tillBalances = await db.query(`
@@ -105,12 +111,14 @@ router.get('/summary', async (req, res, next) => {
       FROM tills tl
       LEFT JOIN transactions t
         ON t.till_id = tl.id
+        AND t.user_id = $1
         AND COALESCE(t.affects_balance, 1) = 1
         AND t.deleted_at IS NULL
       WHERE tl.deleted_at IS NULL
+        AND tl.user_id = $1
       GROUP BY tl.id, tl.name, tl.account_number, tl.is_bank
       ORDER BY tl.name ASC
-    `);
+    `, [req.userId]);
 
     // Available cash (non-bank tills, excludes credit card charges)
     const availableCash = await db.query(`
@@ -125,11 +133,13 @@ router.get('/summary', async (req, res, next) => {
       FROM tills tl
       LEFT JOIN transactions t
         ON t.till_id = tl.id
+        AND t.user_id = $1
         AND COALESCE(t.affects_balance, 1) = 1
         AND t.deleted_at IS NULL
       WHERE COALESCE(tl.is_bank, false) = false
         AND tl.deleted_at IS NULL
-    `);
+        AND tl.user_id = $1
+    `, [req.userId]);
 
     // Income and expense totals (transfers move balances, they are not income)
     const totals = await db.query(`
@@ -138,7 +148,8 @@ router.get('/summary', async (req, res, next) => {
         COALESCE(SUM(CASE WHEN type = 'egreso' THEN amount END), 0) AS expense
       FROM transactions
       WHERE deleted_at IS NULL
-    `);
+        AND user_id = $1
+    `, [req.userId]);
 
     res.json({
       totalBalance: parseFloat(totalBalance.rows[0]?.total || 0),
@@ -205,6 +216,7 @@ router.get('/credit-cards', async (req, res, next) => {
               AND t.affects_balance = 0
               AND t.type = 'egreso'
               AND t.deleted_at IS NULL
+              AND t.user_id = $1
           ), 0
         ) AS total_charged,
         COALESCE(
@@ -213,14 +225,17 @@ router.get('/credit-cards', async (req, res, next) => {
             FROM credit_card_payment_items ccpi
             WHERE ccpi.credit_card_id = cc.id
               AND ccpi.deleted_at IS NULL
+              AND ccpi.user_id = $1
           ), 0
         ) AS total_paid
       FROM credit_cards cc
       JOIN tills tl ON cc.till_id = tl.id
       WHERE cc.deleted_at IS NULL
+        AND cc.user_id = $1
         AND tl.deleted_at IS NULL
+        AND tl.user_id = $1
       ORDER BY tl.name ASC, cc.name ASC
-    `);
+    `, [req.userId]);
 
     // Group by till
     const tillMap = new Map();

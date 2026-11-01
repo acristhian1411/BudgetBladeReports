@@ -16,8 +16,8 @@ router.get('/', async (req, res, next) => {
     const db = req.app.locals.db;
     const { type } = req.query;
 
-    let query = 'SELECT id, name, type FROM categories WHERE deleted_at IS NULL';
-    const params = [];
+    let query = 'SELECT id, name, type FROM categories WHERE deleted_at IS NULL AND user_id = $1';
+    const params = [req.userId];
     if (type === 'income' || type === 'expense') {
       params.push(type);
       query += ` AND type = $${params.length}`;
@@ -37,14 +37,14 @@ router.post('/', async (req, res, next) => {
 
   try {
     const db = req.app.locals.db;
-    const row = stampNew({ name: data.name, type: data.type });
+    const row = stampNew({ name: data.name, type: data.type }, req.userId);
 
     const result = await db.query(
-      `INSERT INTO categories (name, type, uuid, updated_at)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (name, type) DO NOTHING
+      `INSERT INTO categories (name, type, user_id, uuid, updated_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id, name, type) DO NOTHING
        RETURNING id`,
-      [row.name, row.type, row.uuid, row.updated_at],
+      [row.name, row.type, row.user_id, row.uuid, row.updated_at],
     );
 
     if (result.rowCount === 0) {
@@ -71,7 +71,7 @@ router.put('/:id', async (req, res, next) => {
     if (data.name !== undefined) changes.name = data.name;
     if (data.type !== undefined) changes.type = data.type;
 
-    const updated = await updateRow(req.app.locals.db, 'categories', id, changes);
+    const updated = await updateRow(req.app.locals.db, 'categories', id, changes, req.userId);
     if (updated === 0) return res.status(404).json({ error: 'Category not found' });
     res.json({ id });
   } catch (error) {
@@ -86,7 +86,7 @@ router.delete('/:id', async (req, res, next) => {
   }
 
   try {
-    const deleted = await softDeleteRow(req.app.locals.db, 'categories', id);
+    const deleted = await softDeleteRow(req.app.locals.db, 'categories', id, req.userId);
     if (deleted === 0) return res.status(404).json({ error: 'Category not found' });
     res.json({ id, deleted: true });
   } catch (error) {

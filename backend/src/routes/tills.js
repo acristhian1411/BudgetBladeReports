@@ -32,12 +32,14 @@ router.get('/', async (req, res, next) => {
       FROM tills tl
       LEFT JOIN transactions t
         ON t.till_id = tl.id
+        AND t.user_id = $1
         AND COALESCE(t.affects_balance, 1) = 1
         AND t.deleted_at IS NULL
       WHERE tl.deleted_at IS NULL
+        AND tl.user_id = $1
       GROUP BY tl.id
       ORDER BY tl.name ASC
-    `);
+    `, [req.userId]);
 
     res.json(
       result.rows.map((row) => ({
@@ -63,13 +65,13 @@ router.post('/', async (req, res, next) => {
       name: data.name,
       account_number: data.account_number ?? null,
       is_bank: data.is_bank ?? Boolean(String(data.account_number ?? '').trim()),
-    });
+    }, req.userId);
 
     const result = await db.query(
-      `INSERT INTO tills (name, account_number, is_bank, uuid, updated_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO tills (name, account_number, is_bank, user_id, uuid, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id`,
-      [row.name, row.account_number, row.is_bank, row.uuid, row.updated_at],
+      [row.name, row.account_number, row.is_bank, row.user_id, row.uuid, row.updated_at],
     );
 
     res.status(201).json({ id: result.rows[0].id, ...row });
@@ -93,7 +95,7 @@ router.put('/:id', async (req, res, next) => {
     if (data.account_number !== undefined) changes.account_number = data.account_number;
     if (data.is_bank !== undefined) changes.is_bank = data.is_bank;
 
-    const updated = await updateRow(req.app.locals.db, 'tills', id, changes);
+    const updated = await updateRow(req.app.locals.db, 'tills', id, changes, req.userId);
     if (updated === 0) return res.status(404).json({ error: 'Till not found' });
     res.json({ id });
   } catch (error) {
@@ -108,7 +110,7 @@ router.delete('/:id', async (req, res, next) => {
   }
 
   try {
-    const deleted = await softDeleteRow(req.app.locals.db, 'tills', id);
+    const deleted = await softDeleteRow(req.app.locals.db, 'tills', id, req.userId);
     if (deleted === 0) return res.status(404).json({ error: 'Till not found' });
     res.json({ id, deleted: true });
   } catch (error) {
