@@ -40,7 +40,10 @@ const monthDate = (date, offset, day) => {
   return new Date(year, month, Math.min(day, lastDay), 12);
 };
 
-export async function seedDemoDatabase(pool, { today = new Date() } = {}) {
+export async function seedDemoDatabase(
+  pool,
+  { today = new Date(), userId = process.env.SEED_USER_ID ?? 'demo' } = {},
+) {
   const base = new Date(
     today.getFullYear(),
     today.getMonth(),
@@ -52,11 +55,11 @@ export async function seedDemoDatabase(pool, { today = new Date() } = {}) {
 
   return withTransaction(pool, async (client) => {
     for (const table of WIPE_TABLES) {
-      await client.query(`DELETE FROM ${table}`);
+      await client.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
     }
 
     const insert = async (table, data) => {
-      const row = stampNew(data);
+      const row = stampNew(data, userId);
       const columns = Object.keys(row);
       const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
       const result = await client.query(
@@ -69,7 +72,8 @@ export async function seedDemoDatabase(pool, { today = new Date() } = {}) {
     // Categories are kept between runs; only create the ones a fresh database
     // might be missing.
     const categoryRows = await client.query(
-      'SELECT id, name, type FROM categories',
+      'SELECT id, name, type FROM categories WHERE user_id = $1',
+      [userId],
     );
     const categoryIds = new Map(
       categoryRows.rows.map((row) => [`${row.name}|${row.type}`, row.id]),
@@ -78,11 +82,11 @@ export async function seedDemoDatabase(pool, { today = new Date() } = {}) {
       const key = `${name}|${type}`;
       if (categoryIds.has(key)) return categoryIds.get(key);
       const result = await client.query(
-        `INSERT INTO categories (name, type, uuid, updated_at)
-         VALUES ($1, $2, $3, now())
-         ON CONFLICT (name, type) DO UPDATE SET updated_at = now()
+        `INSERT INTO categories (name, type, user_id, uuid, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (user_id, name, type) DO UPDATE SET updated_at = now()
          RETURNING id`,
-        [name, type, randomUUID()],
+        [name, type, userId, randomUUID()],
       );
       categoryIds.set(key, result.rows[0].id);
       return result.rows[0].id;

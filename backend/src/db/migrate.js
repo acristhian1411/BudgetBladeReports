@@ -213,6 +213,21 @@ export const migrateDatabase = async (pool) => {
     `);
 
     // -----------------------------------------------------------------------
+    // Ownership columns (multi-user): every business row belongs to the user
+    // that created it. `users` is excluded (local mobile credentials never
+    // reach the server).
+    // -----------------------------------------------------------------------
+    for (const tableName of SYNC_TABLES) {
+      await client.query(`
+        ALTER TABLE ${tableName}
+          ADD COLUMN IF NOT EXISTS user_id TEXT;
+      `);
+      await client.query(
+        `CREATE INDEX IF NOT EXISTS idx_${tableName}_user_id ON ${tableName}(user_id)`,
+      );
+    }
+
+    // -----------------------------------------------------------------------
     // Remote sync columns (uuid identity, soft delete, updated_at, device_id)
     // -----------------------------------------------------------------------
     for (const tableName of SYNC_TABLES) {
@@ -250,62 +265,34 @@ export const migrateDatabase = async (pool) => {
     }
 
     // Categories: allow the same name across income/expense (mobile behavior,
-    // e.g. "Ajustes" and "Intereses" exist in both). Replace the old unique
-    // constraint on name with a composite unique on (name, type).
+    // e.g. "Ajustes" and "Intereses" exist in both). Every user owns their own
+    // catalog, so uniqueness is scoped by owner.
     await client.query(`
       ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_name_key;
     `);
     await client.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_name_type ON categories(name, type);
+      DROP INDEX IF EXISTS idx_categories_name_type;
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name_type
+        ON categories(user_id, name, type);
     `);
 
-    // Ledger of processed sync operations (idempotency + audit).
+    // Ledger of processed sync operations (idempotency + audit), scoped by the
+    // user that pushed the operation.
     await client.query(`
       CREATE TABLE IF NOT EXISTS sync_operations (
         uuid TEXT PRIMARY KEY,
+        user_id TEXT,
         entity TEXT NOT NULL,
         operation TEXT NOT NULL,
         entity_id INTEGER,
         device_id TEXT,
         applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      ALTER TABLE sync_operations ADD COLUMN IF NOT EXISTS user_id TEXT;
+      CREATE INDEX IF NOT EXISTS idx_sync_operations_user_id ON sync_operations(user_id);
     `);
-
-    // Seed categories if table is empty
-    const categoryCount = await client.query('SELECT COUNT(*) FROM categories');
-    if (Number(categoryCount.rows[0].count) === 0) {
-      const categoriesList = [
-        ['Alimentación', 'expense'],
-        ['Salud', 'expense'],
-        ['Combustible', 'expense'],
-        ['Mantenimiento', 'expense'],
-        ['Vestimenta', 'expense'],
-        ['Servicios', 'expense'],
-        ['Subscripciones', 'expense'],
-        ['Alquiler', 'expense'],
-        ['Ajustes', 'expense'],
-        ['Préstamos', 'expense'],
-        ['Ocio', 'expense'],
-        ['Educación', 'expense'],
-        ['Impuestos', 'expense'],
-        ['Pago de tarjetas', 'expense'],
-        ['Intereses de tarjeta', 'expense'],
-        ['Intereses', 'expense'],
-        ['Otros', 'expense'],
-        ['Salario', 'income'],
-        ['Ajustes', 'income'],
-        ['Ventas', 'income'],
-        ['Alquileres Cobrados', 'income'],
-        ['Intereses', 'income'],
-      ];
-
-      for (const [name, type] of categoriesList) {
-        await client.query(
-          'INSERT INTO categories (name, type, uuid, updated_at) VALUES ($1, $2, $3, now()) ON CONFLICT (name, type) DO NOTHING',
-          [name, type, randomUUID()],
-        );
-      }
-    }
 
     console.log('✓ Database migration completed');
   } catch (error) {
