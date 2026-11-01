@@ -8,6 +8,9 @@ export default {
       out: 'build',
       precompress: false,
     }),
+    serviceWorker: {
+      register: process.env.NODE_ENV === 'production',
+    },
     env: {
       dir: '.',
       publicPrefix: '',

@@ -74,6 +74,21 @@
   onMount(() => {
     refreshSession();
 
+    if (import.meta.env.DEV && "serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+        if (!registrations.length) return;
+
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+        const cacheNames = await caches.keys();
+        await Promise.all(
+          cacheNames
+            .filter((name) => name.startsWith("budgetblade-reports-"))
+            .map((name) => caches.delete(name)),
+        );
+        window.location.reload();
+      });
+    }
+
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener("message", (event) => {
         if (event.data?.type === "UPDATE_AVAILABLE") {
