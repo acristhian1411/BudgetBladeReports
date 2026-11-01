@@ -20,7 +20,9 @@
       const meData = await getCurrentUser();
       authStore.setToken(data.access_token, meData.user);
 
-      await goto("/dashboard");
+      await goto(
+        meData.user?.reset_password === false ? "/change-password" : "/dashboard",
+      );
     } catch (err) {
       error = err.message;
     } finally {

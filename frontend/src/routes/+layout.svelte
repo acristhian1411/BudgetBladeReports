@@ -12,7 +12,22 @@
 
   $: isAuthenticated = $authStore.token !== null;
   $: isLoginPage = $page.url.pathname === "/login";
-  $: shouldShowLayout = isAuthenticated && !isLoginPage;
+  $: isChangePasswordPage = $page.url.pathname === "/change-password";
+  // The auth server flags accounts that still use a temporary password with
+  // reset_password === false.
+  $: mustChangePassword =
+    isAuthenticated && $authStore.user?.reset_password === false;
+  $: shouldShowLayout =
+    isAuthenticated && !isLoginPage && !mustChangePassword;
+
+  $: if (
+    typeof window !== "undefined" &&
+    !checkingSession &&
+    mustChangePassword &&
+    !isChangePasswordPage
+  ) {
+    goto("/change-password");
+  }
 
   const navItems = [
     { label: "Panel", href: "/dashboard", icon: "📊" },
@@ -147,6 +162,13 @@
             <div class="truncate">{$authStore.user.email}</div>
           {/if}
         </div>
+        <a
+          href="/change-password"
+          class="block w-full text-center px-3 py-2 mb-2 bg-brand-surface-2 text-white rounded text-sm font-semibold hover:opacity-90 transition-opacity"
+          on:click={closeMenu}
+        >
+          Cambiar contraseña
+        </a>
         <button
           on:click={handleLogout}
           class="w-full px-3 py-2 bg-brand-rose text-white rounded text-sm font-semibold hover:opacity-90 transition-opacity"

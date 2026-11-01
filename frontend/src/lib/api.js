@@ -144,3 +144,10 @@ export async function getCurrentUser() {
   return apiGet('/auth/me');
 }
 
+/**
+ * Auth API: Change the password on the auth server
+ */
+export async function changePassword(body) {
+  return apiPost('/auth/change-password', body);
+}
+
