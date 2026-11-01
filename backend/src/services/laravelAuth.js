@@ -61,7 +61,7 @@ export async function loginWithLaravel({ email, password, scope }) {
     grant_type: 'password',
     client_id: String(authClientId),
     client_secret: authClientSecret,
-    username: email,
+    username: typeof email === 'string' ? email.trim() : email,
     password,
     scope: scope ?? authScope,
   });

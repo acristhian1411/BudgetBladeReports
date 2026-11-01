@@ -55,15 +55,16 @@
       <form on:submit|preventDefault={handleLogin} class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-white mb-2" for="email">
-            Correo
+            Correo o cédula
           </label>
           <input
-            type="email"
+            type="text"
             id="email"
             bind:value={email}
             disabled={loading}
             class="input-field"
-            placeholder="tu@email.com"
+            placeholder="tu@email.com o cédula"
+            autocomplete="username"
             required
           />
         </div>
