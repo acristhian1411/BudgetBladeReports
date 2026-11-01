@@ -4,7 +4,12 @@ import { randomUUID } from 'node:crypto';
 import { decryptNBBBackup } from '../services/backup.js';
 import { applyChanges, getChangesSince } from '../services/sync.js';
 import { requireScope } from '../middleware/requireScope.js';
-import { DELETE_ORDER, INSERT_ORDER, TABLE_COLUMNS } from '../db/tables.js';
+import {
+  DELETE_ORDER,
+  INSERT_ORDER,
+  TABLE_COLUMNS,
+  FK_UUID_MAP,
+} from '../db/tables.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -28,6 +33,10 @@ const isClientImportError = (error) => {
   return IMPORT_CLIENT_ERROR_PATTERNS.some((pattern) => pattern.test(message));
 };
 
+// `users` holds the mobile's local credentials and is never imported into the
+// shared server database.
+const IMPORT_TABLES = INSERT_ORDER.filter((table) => table !== 'users');
+
 /**
  * GET /api/sync?since=<ts>
  * Pulls incremental changes (all entities) since the given cursor.
@@ -37,7 +46,7 @@ router.get('/', requireScope(SYNC_READ_SCOPE), async (req, res, next) => {
   try {
     const db = req.app.locals.db;
     const { since } = req.query;
-    const serverChanges = await getChangesSince(db, since ?? '0');
+    const serverChanges = await getChangesSince(db, since ?? '0', req.userId);
     res.json({ serverChanges, syncedAt: new Date().toISOString() });
   } catch (error) {
     next(error);
@@ -51,7 +60,7 @@ router.get('/', requireScope(SYNC_READ_SCOPE), async (req, res, next) => {
 router.post('/', requireScope(SYNC_WRITE_SCOPE), async (req, res, next) => {
   try {
     const db = req.app.locals.db;
-    const result = await applyChanges(db, req.body ?? {});
+    const result = await applyChanges(db, req.body ?? {}, req.userId);
     res.json(result);
   } catch (error) {
     if (error?.name === 'ZodError') {
@@ -98,66 +107,82 @@ router.post('/import', upload.single('file'), async (req, res, next) => {
     await client.query('BEGIN');
     transactionStarted = true;
 
-    // Step 3: Delete existing data (in reverse dependency order)
+    // Step 3: Clear only this user's data (in reverse dependency order).
     console.log('[SYNC] Step 3: Clearing existing data...');
     for (const tableName of DELETE_ORDER) {
-      await client.query(`DELETE FROM ${tableName}`);
+      if (tableName === 'users') continue;
+      await client.query(`DELETE FROM ${tableName} WHERE user_id = $1`, [req.userId]);
     }
     console.log('[SYNC] ✓ Data cleared');
 
-    // Step 4: Insert new data (in dependency order)
+    // Step 4: Insert new data (in dependency order). Mobile ids are local to
+    // the backup, so they are re-generated server-side and every FK is remapped
+    // through `idMaps` to keep users isolated.
     console.log('[SYNC] Step 4: Inserting backup data...');
     const rowCountByTable = {};
+    const idMaps = Object.fromEntries(IMPORT_TABLES.map((table) => [table, new Map()]));
+    const pendingParents = [];
+    const now = new Date().toISOString();
 
-    for (const tableName of INSERT_ORDER) {
+    for (const tableName of IMPORT_TABLES) {
       const rows = Array.isArray(backup.tables?.[tableName])
         ? backup.tables[tableName]
         : [];
-      const allowedColumns = TABLE_COLUMNS[tableName] ?? [];
+      const allowedColumns = (TABLE_COLUMNS[tableName] ?? []).filter((c) => c !== 'id');
+      const fkMap = FK_UUID_MAP[tableName] ?? [];
       let inserted = 0;
 
       for (const row of rows) {
         if (!row || typeof row !== 'object') continue;
 
-        const normalizedRow =
-          tableName === 'tills'
-            ? {
-                ...row,
-                // Mobile backups don't include is_bank; infer from account number.
-                is_bank: Boolean(String(row.account_number ?? '').trim()),
-              }
-            : row;
-
-        // Populate remote-sync identity columns for imported business rows.
-        // `users` is excluded from sync (local password hash must not reach the server).
-        if (tableName !== 'users') {
-          normalizedRow.uuid = normalizedRow.uuid ?? randomUUID();
-          normalizedRow.updated_at =
-            normalizedRow.updated_at ?? new Date().toISOString();
+        const normalizedRow = {
+          ...row,
+          user_id: req.userId,
+          uuid: row.uuid ?? randomUUID(),
+          updated_at: row.updated_at ?? now,
+        };
+        // Mobile backups don't include is_bank; infer from account number.
+        if (tableName === 'tills') {
+          normalizedRow.is_bank = Boolean(String(row.account_number ?? '').trim());
         }
 
         const validColumns = allowedColumns.filter(
-          (c) =>
-            Object.prototype.hasOwnProperty.call(normalizedRow, c) &&
-            normalizedRow[c] !== undefined,
+          (c) => Object.prototype.hasOwnProperty.call(normalizedRow, c),
         );
-
-        if (tableName !== 'users') {
-          for (const syncCol of ['uuid', 'updated_at']) {
-            if (!validColumns.includes(syncCol)) validColumns.push(syncCol);
+        for (const fk of fkMap) {
+          if (Object.prototype.hasOwnProperty.call(row, fk.id) && !validColumns.includes(fk.id)) {
+            validColumns.push(fk.id);
           }
         }
+        for (const syncCol of ['user_id', 'uuid', 'updated_at']) {
+          if (!validColumns.includes(syncCol)) validColumns.push(syncCol);
+        }
 
-        if (validColumns.length === 0) continue;
-
-        const placeholders = validColumns.map((_, i) => `$${i + 1}`).join(', ');
-        const values = validColumns.map((c) => normalizedRow[c]);
+        // Translate the mobile's local ids to this database's ids.
+        for (const fk of fkMap) {
+          if (fk.id === 'parent_transaction_id') continue;
+          const oldId = row[fk.id];
+          normalizedRow[fk.id] =
+            oldId == null ? null : (idMaps[fk.ref]?.get(Number(oldId)) ?? null);
+        }
+        const oldParentId =
+          tableName === 'transactions' ? row.parent_transaction_id : null;
+        normalizedRow.parent_transaction_id = null;
 
         try {
-          await client.query(
-            `INSERT INTO ${tableName} (${validColumns.join(', ')}) VALUES (${placeholders})`,
+          const placeholders = validColumns.map((_, i) => `$${i + 1}`).join(', ');
+          const values = validColumns.map((c) => normalizedRow[c]);
+          const result = await client.query(
+            `INSERT INTO ${tableName} (${validColumns.join(', ')})
+             VALUES (${placeholders})
+             RETURNING id`,
             values,
           );
+          const newId = result.rows[0].id;
+          idMaps[tableName].set(Number(row.id), newId);
+          if (oldParentId != null) {
+            pendingParents.push({ newId, oldParentId: Number(oldParentId) });
+          }
           inserted += 1;
         } catch (insertError) {
           console.warn(
@@ -171,46 +196,19 @@ router.post('/import', upload.single('file'), async (req, res, next) => {
       console.log(`  - ${tableName}: ${inserted} rows inserted`);
     }
 
-    // Step 5: Reset autoincrement sequences
-    console.log('[SYNC] Step 5: Resetting sequences...');
-    const AUTOINCREMENT_TABLES = [
-      'tills',
-      'categories',
-      'entities',
-      'credit_cards',
-      'transactions',
-      'scheduled_plans',
-      'scheduled_occurrences',
-      'credit_card_payment_items',
-      'scheduled_payments_mapping',
-    ];
-
-    for (const tableName of AUTOINCREMENT_TABLES) {
-      const maxRow = await client.query(
-        `SELECT COALESCE(MAX(id), 0) AS max_id FROM ${tableName}`,
+    // Self-referencing FK: parent transactions may appear after their children.
+    for (const { newId, oldParentId } of pendingParents) {
+      const parentId = idMaps.transactions.get(oldParentId);
+      if (parentId == null) continue;
+      await client.query(
+        `UPDATE transactions SET parent_transaction_id = $1
+          WHERE id = $2 AND user_id = $3`,
+        [parentId, newId, req.userId],
       );
-      const maxId = Number(maxRow.rows[0]?.max_id ?? 0);
-
-      // Keep serial sequence aligned to imported max id, if the table has one.
-      if (Number.isFinite(maxId) && maxId > 0) {
-        const sequenceResult = await client.query(
-          'SELECT pg_get_serial_sequence($1, $2) AS sequence_name',
-          [tableName, 'id'],
-        );
-        const sequenceName = sequenceResult.rows[0]?.sequence_name;
-
-        if (sequenceName) {
-          await client.query('SELECT setval($1::regclass, $2, true)', [
-            sequenceName,
-            maxId,
-          ]);
-        }
-      }
     }
-    console.log('[SYNC] ✓ Sequences reset');
 
-    // Step 6: Commit transaction
-    console.log('[SYNC] Step 6: Committing transaction...');
+    // Step 5: Commit transaction
+    console.log('[SYNC] Step 5: Committing transaction...');
     await client.query('COMMIT');
     console.log('[SYNC] ✓ Transaction committed');
 
