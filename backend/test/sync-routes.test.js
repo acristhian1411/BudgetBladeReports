@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { migrateDatabase } from '../src/db/migrate.js';
 import syncRouter from '../src/routes/sync.js';
-import { resetTestDatabase, createPool } from '../test-utils/db.js';
+import { resetTestDatabase, createPool, withTestUser } from '../test-utils/db.js';
 
 let pool;
 let server;
@@ -18,6 +18,7 @@ before(async () => {
   const app = express();
   app.use(express.json({ limit: '50mb' }));
   app.locals.db = pool;
+  app.use(withTestUser);
   app.use('/api/sync', syncRouter);
   app.use((err, req, res, next) => {
     res.status(err.status || 500).json({ error: err.message });

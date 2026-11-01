@@ -3,13 +3,19 @@ import assert from 'node:assert/strict';
 import { migrateDatabase } from '../src/db/migrate.js';
 import { applyChanges, getChangesSince } from '../src/services/sync.js';
 import { resetTestDatabase, createPool } from '../test-utils/db.js';
+import { ensureUserCategories } from '../src/db/defaults.js';
 
 let pool;
+
+const USER_ID = 'sync-user';
+const push = (input) => applyChanges(pool, input, USER_ID);
+const pull = (since) => getChangesSince(pool, since, USER_ID);
 
 before(async () => {
   await resetTestDatabase();
   pool = createPool();
   await migrateDatabase(pool);
+  await ensureUserCategories(pool, USER_ID);
 });
 
 after(async () => {
@@ -35,7 +41,7 @@ const tx = (uuid, amount, overrides = {}) => ({
 });
 
 test('create operation inserts a row by uuid and records the ledger entry', async () => {
-  const result = await applyChanges(pool, {
+  const result = await push( {
     changes: [
       change('op-create-1', 'transactions', 'create', tx('tx-1', 100), '2026-09-13T10:00:00Z'),
     ],
@@ -65,10 +71,10 @@ test('re-applying the same operation uuid is idempotent', async () => {
   const payload = {
     changes: [change('op-idem-1', 'transactions', 'create', tx('tx-idem', 50), '2026-09-13T10:00:00Z')],
   };
-  const first = await applyChanges(pool, payload);
+  const first = await push( payload);
   assert.deepEqual(first.accepted, ['op-idem-1']);
 
-  const second = await applyChanges(pool, payload);
+  const second = await push( payload);
   assert.deepEqual(second.accepted, ['op-idem-1']);
 
   const count = await pool.query(
@@ -79,11 +85,11 @@ test('re-applying the same operation uuid is idempotent', async () => {
 });
 
 test('update operation upserts changed fields by uuid', async () => {
-  await applyChanges(pool, {
+  await push( {
     changes: [change('op-upd-1', 'transactions', 'create', tx('tx-upd', 200), '2026-09-13T11:00:00Z')],
   });
 
-  await applyChanges(pool, {
+  await push( {
     changes: [
       change(
         'op-upd-2',
@@ -105,7 +111,7 @@ test('update operation upserts changed fields by uuid', async () => {
 });
 
 test('stale update loses to last-write-wins and is reported as conflict', async () => {
-  const result = await applyChanges(pool, {
+  const result = await push( {
     changes: [
       change('op-lww-1', 'transactions', 'update', tx('tx-upd', 999), '2026-09-13T09:00:00Z'),
     ],
@@ -119,7 +125,7 @@ test('stale update loses to last-write-wins and is reported as conflict', async 
 });
 
 test('delete operation soft-deletes the row by uuid (tombstone)', async () => {
-  await applyChanges(pool, {
+  await push( {
     changes: [
       change('op-del-1', 'transactions', 'delete', { uuid: 'tx-upd' }, '2026-09-13T13:00:00Z'),
     ],
@@ -134,7 +140,7 @@ test('delete operation soft-deletes the row by uuid (tombstone)', async () => {
 });
 
 test('resolves *_uuid FK references to internal integer ids', async () => {
-  await applyChanges(pool, {
+  await push( {
     changes: [
       change('op-till-1', 'tills', 'create', { uuid: 'till-1', name: 'Efectivo' }, '2026-09-13T10:00:00Z'),
       change(
@@ -153,7 +159,7 @@ test('resolves *_uuid FK references to internal integer ids', async () => {
 });
 
 test('applies a batch in dependency order (parents before children)', async () => {
-  const result = await applyChanges(pool, {
+  const result = await push( {
     changes: [
       change('op-child-first', 'transactions', 'create', tx('tx-order', 10, { till_uuid: 'till-order' }), '2026-09-13T10:00:00Z'),
       change('op-parent-last', 'tills', 'create', { uuid: 'till-order', name: 'Nueva' }, '2026-09-13T10:00:00Z'),
@@ -166,7 +172,7 @@ test('applies a batch in dependency order (parents before children)', async () =
 });
 
 test('persists device_id on the row', async () => {
-  await applyChanges(pool, {
+  await push( {
     changes: [
       change('op-device', 'tills', 'create', { uuid: 'till-dev', name: 'Dev' }, '2026-09-13T10:00:00Z', 'device-123'),
     ],
@@ -177,7 +183,7 @@ test('persists device_id on the row', async () => {
 });
 
 test('tills: is_bank is inferred from account_number when absent', async () => {
-  await applyChanges(pool, {
+  await push( {
     changes: [
       change('op-bank', 'tills', 'create', { uuid: 'till-bank', name: 'Banco', account_number: '1234' }, '2026-09-13T10:00:00Z'),
       change('op-cash', 'tills', 'create', { uuid: 'till-cash', name: 'Efectivo' }, '2026-09-13T10:00:00Z'),
@@ -191,7 +197,7 @@ test('tills: is_bank is inferred from account_number when absent', async () => {
 });
 
 test('getChangesSince emits uuid, business columns, *_uuid FKs and no integer ids', async () => {
-  const changes = await getChangesSince(pool, '0');
+  const changes = await pull( '0');
 
   const txRow = changes.transactions.find((r) => r.uuid === 'tx-fk');
   assert.ok(txRow, 'transaction row present');
@@ -208,15 +214,15 @@ test('getChangesSince emits uuid, business columns, *_uuid FKs and no integer id
 });
 
 test('getChangesSince includes soft-deleted tombstones and respects the cursor', async () => {
-  const all = await getChangesSince(pool, '0');
+  const all = await pull( '0');
   assert.ok(all.transactions.some((r) => r.uuid === 'tx-upd' && r.deleted_at), 'tombstone present on full pull');
 
-  const afterDelete = await getChangesSince(pool, '2026-09-13T12:30:00Z');
+  const afterDelete = await pull( '2026-09-13T12:30:00Z');
   assert.ok(afterDelete.transactions.some((r) => r.uuid === 'tx-upd' && r.deleted_at), 'tombstone in incremental pull');
 });
 
 test('seeded categories are syncable (have uuid and updated_at)', async () => {
-  const changes = await getChangesSince(pool, '0');
+  const changes = await pull( '0');
   assert.ok(changes.categories.length > 0);
   assert.ok(changes.categories.every((c) => c.uuid && c.updated_at));
 });
@@ -224,7 +230,7 @@ test('seeded categories are syncable (have uuid and updated_at)', async () => {
 test('rejects a change whose data has no entity uuid', async () => {
   await assert.rejects(
     () =>
-      applyChanges(pool, {
+      push( {
         changes: [
           { uuid: 'op-no-entity-uuid', entity: 'transactions', operation: 'create', data: { amount: 1 }, updated_at: '2026-09-13T10:00:00Z' },
         ],

@@ -1,8 +1,29 @@
 import { Pool } from 'pg';
+import { ensureUserCategories } from '../src/db/defaults.js';
 
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   'postgres://laravel:secret@localhost:35432/budgetblade_test';
+
+export const TEST_USER_ID = 'test-user';
+
+/**
+ * Stand-in for `requireAuth` in route tests: gives the request an owner
+ * without calling the external auth server.
+ */
+export const withTestUser = (req, _res, next) => {
+  req.userId = TEST_USER_ID;
+  next();
+};
+
+export const withUser = (userId) => (req, _res, next) => {
+  req.userId = userId;
+  next();
+};
+
+/** Seeds the default per-user category catalog for route tests. */
+export const seedTestCategories = (pool, userId = TEST_USER_ID) =>
+  ensureUserCategories(pool, userId);
 
 const getDbName = (url) => new URL(url).pathname.replace(/^\//, '');
 

@@ -4,7 +4,13 @@ import express from 'express';
 import { migrateDatabase } from '../src/db/migrate.js';
 import transactionsRouter from '../src/routes/transactions.js';
 import creditCardsRouter from '../src/routes/credit-cards.js';
-import { resetTestDatabase, createPool } from '../test-utils/db.js';
+import {
+  resetTestDatabase,
+  createPool,
+  seedTestCategories,
+  withTestUser,
+  TEST_USER_ID,
+} from '../test-utils/db.js';
 
 let pool;
 let server;
@@ -21,13 +27,15 @@ before(async () => {
   await resetTestDatabase();
   pool = createPool();
   await migrateDatabase(pool);
+  await seedTestCategories(pool);
 
-  await pool.query(`INSERT INTO tills (name, uuid, updated_at) VALUES
-    ('Efectivo', gen_random_uuid(), now())`);
+  await pool.query(`INSERT INTO tills (name, user_id, uuid, updated_at) VALUES
+    ('Efectivo', $1, gen_random_uuid(), now())`, [TEST_USER_ID]);
 
   const app = express();
   app.use(express.json());
   app.locals.db = pool;
+  app.use(withTestUser);
   app.use('/api/transactions', transactionsRouter);
   app.use('/api/credit-cards', creditCardsRouter);
   app.use((err, req, res, next) => {

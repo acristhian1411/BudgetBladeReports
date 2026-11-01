@@ -5,7 +5,12 @@ import { migrateDatabase } from '../src/db/migrate.js';
 import tillsRouter from '../src/routes/tills.js';
 import categoriesRouter from '../src/routes/categories.js';
 import entitiesRouter from '../src/routes/entities.js';
-import { resetTestDatabase, createPool } from '../test-utils/db.js';
+import {
+  resetTestDatabase,
+  createPool,
+  seedTestCategories,
+  withTestUser,
+} from '../test-utils/db.js';
 
 let pool;
 let server;
@@ -22,10 +27,12 @@ before(async () => {
   await resetTestDatabase();
   pool = createPool();
   await migrateDatabase(pool);
+  await seedTestCategories(pool);
 
   const app = express();
   app.use(express.json());
   app.locals.db = pool;
+  app.use(withTestUser);
   app.use('/api/tills', tillsRouter);
   app.use('/api/categories', categoriesRouter);
   app.use('/api/entities', entitiesRouter);

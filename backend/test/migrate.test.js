@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { migrateDatabase } from '../src/db/migrate.js';
 import { SYNC_TABLES } from '../src/db/tables.js';
 import { resetTestDatabase, createPool } from '../test-utils/db.js';
+import { ensureUserCategories } from '../src/db/defaults.js';
 
 let pool;
 
@@ -26,13 +27,13 @@ test('migrateDatabase adds sync columns to every sync table', async () => {
       `SELECT column_name
          FROM information_schema.columns
         WHERE table_name = $1
-          AND column_name IN ('uuid', 'updated_at', 'deleted_at', 'device_id')`,
+          AND column_name IN ('uuid', 'updated_at', 'deleted_at', 'device_id', 'user_id')`,
       [table],
     );
     assert.equal(
       res.rowCount,
-      4,
-      `${table}: expected uuid/updated_at/deleted_at/device_id columns`,
+      5,
+      `${table}: expected uuid/updated_at/deleted_at/device_id/user_id columns`,
     );
   }
 });
@@ -71,8 +72,16 @@ test('migrateDatabase is idempotent and creates unique uuid indexes', async () =
   }
 });
 
-test('migrateDatabase seeds default categories', async () => {
+test('migrateDatabase scopes default categories per user', async () => {
   await migrateDatabase(pool);
-  const res = await pool.query(`SELECT COUNT(*)::int AS count FROM categories`);
-  assert.ok(res.rows[0].count > 0, 'categories should be seeded');
+  await ensureUserCategories(pool, 'user-a');
+  await ensureUserCategories(pool, 'user-b');
+
+  const res = await pool.query(
+    `SELECT user_id, COUNT(*)::int AS count FROM categories GROUP BY user_id ORDER BY user_id`,
+  );
+  assert.deepEqual(res.rows, [
+    { user_id: 'user-a', count: 22 },
+    { user_id: 'user-b', count: 22 },
+  ]);
 });

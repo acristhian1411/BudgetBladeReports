@@ -1,7 +1,12 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { resetTestDatabase, createPool } from '../test-utils/db.js';
+import {
+  resetTestDatabase,
+  createPool,
+  withTestUser,
+  TEST_USER_ID,
+} from '../test-utils/db.js';
 import { seedDemoDatabase } from '../src/db/seed.js';
 import dashboardRouter from '../src/routes/dashboard.js';
 import projectionsRouter from '../src/routes/projections.js';
@@ -17,10 +22,11 @@ let counts;
 before(async () => {
   await resetTestDatabase();
   pool = createPool();
-  counts = await seedDemoDatabase(pool, { today: TODAY });
+  counts = await seedDemoDatabase(pool, { today: TODAY, userId: TEST_USER_ID });
 
   const app = express();
   app.locals.db = pool;
+  app.use(withTestUser);
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/projections', projectionsRouter);
   app.use('/api/credit-cards', creditCardsRouter);

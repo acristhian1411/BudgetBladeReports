@@ -32,7 +32,8 @@ const change = (uuid, entity, operation, data, updated_at = TS) => ({
   updated_at,
 });
 
-const push = (changes) => applyChanges(pool, { changes });
+const USER_ID = 'sync-user';
+const push = (changes) => applyChanges(pool, { changes }, USER_ID);
 
 test('FK map: credit_cards.till_uuid -> tills', async () => {
   await push([
@@ -44,7 +45,7 @@ test('FK map: credit_cards.till_uuid -> tills', async () => {
   const cc = await pool.query('SELECT till_id FROM credit_cards WHERE uuid = $1', ['cc-1']);
   assert.equal(cc.rows[0].till_id, till.rows[0].id);
 
-  const changes = await getChangesSince(pool, '0');
+  const changes = await getChangesSince(pool, '0', USER_ID);
   const row = changes.credit_cards.find((r) => r.uuid === 'cc-1');
   assert.equal(row.till_uuid, 't-cc');
   assert.ok(!('till_id' in row));
@@ -77,7 +78,7 @@ test('FK map: scheduled_plans -> categories/entities/tills', async () => {
   assert.ok(ids.rows[0].entity_id != null);
   assert.ok(ids.rows[0].till_id != null);
 
-  const changes = await getChangesSince(pool, '0');
+  const changes = await getChangesSince(pool, '0', USER_ID);
   const row = changes.scheduled_plans.find((r) => r.uuid === 'plan-1');
   assert.equal(row.category_uuid, 'cat-1');
   assert.equal(row.entity_uuid, 'ent-1');
@@ -110,7 +111,7 @@ test('FK map: scheduled_occurrences -> plan/transaction', async () => {
   assert.ok(occ.rows[0].plan_id != null);
   assert.ok(occ.rows[0].transaction_id != null);
 
-  const changes = await getChangesSince(pool, '0');
+  const changes = await getChangesSince(pool, '0', USER_ID);
   const row = changes.scheduled_occurrences.find((r) => r.uuid === 'occ-1');
   assert.equal(row.plan_uuid, 'plan-occ');
   assert.equal(row.transaction_uuid, 'tx-occ');
@@ -140,7 +141,7 @@ test('FK map: credit_card_payment_items -> card/purchase/payment', async () => {
   assert.ok(cpi.rows[0].purchase_transaction_id != null);
   assert.ok(cpi.rows[0].payment_transaction_id != null);
 
-  const changes = await getChangesSince(pool, '0');
+  const changes = await getChangesSince(pool, '0', USER_ID);
   const row = changes.credit_card_payment_items.find((r) => r.uuid === 'cpi-1');
   assert.equal(row.credit_card_uuid, 'cc-cpi');
   assert.equal(row.purchase_transaction_uuid, 'tx-purchase');
@@ -172,7 +173,7 @@ test('FK map: scheduled_payments_mapping -> occurrence/transaction', async () =>
   assert.ok(spm.rows[0].occurrence_id != null);
   assert.ok(spm.rows[0].transaction_id != null);
 
-  const changes = await getChangesSince(pool, '0');
+  const changes = await getChangesSince(pool, '0', USER_ID);
   const row = changes.scheduled_payments_mapping.find((r) => r.uuid === 'spm-1');
   assert.equal(row.occurrence_uuid, 'occ-spm');
   assert.equal(row.transaction_uuid, 'tx-spm');
@@ -191,7 +192,7 @@ test('FK map: transactions self-reference parent_transaction_uuid', async () => 
   const child = await pool.query('SELECT parent_transaction_id FROM transactions WHERE uuid = $1', ['tx-child']);
   assert.ok(child.rows[0].parent_transaction_id != null);
 
-  const changes = await getChangesSince(pool, '0');
+  const changes = await getChangesSince(pool, '0', USER_ID);
   const row = changes.transactions.find((r) => r.uuid === 'tx-child');
   assert.equal(row.parent_transaction_uuid, 'tx-parent');
   assert.ok(!('parent_transaction_id' in row));
