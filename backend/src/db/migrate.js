@@ -294,6 +294,56 @@ export const migrateDatabase = async (pool) => {
       CREATE INDEX IF NOT EXISTS idx_sync_operations_user_id ON sync_operations(user_id);
     `);
 
+    // -----------------------------------------------------------------------
+    // Bank statement import staging (server-side review before insert). Not
+    // part of the mobile sync set: these hold parsed-but-unreviewed rows.
+    // -----------------------------------------------------------------------
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS statement_imports (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        till_id INTEGER NOT NULL,
+        source_filename TEXT,
+        source_format TEXT,
+        detected_bank TEXT,
+        status TEXT NOT NULL DEFAULT 'mapping',
+        raw_grid JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_statement_imports_user ON statement_imports(user_id);
+      CREATE INDEX IF NOT EXISTS idx_statement_imports_till ON statement_imports(till_id);
+
+      CREATE TABLE IF NOT EXISTS statement_rows (
+        id SERIAL PRIMARY KEY,
+        import_id INTEGER NOT NULL REFERENCES statement_imports(id) ON DELETE CASCADE,
+        transaction_date TEXT NOT NULL,
+        description TEXT,
+        amount NUMERIC(15, 2) NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('ingreso', 'egreso')),
+        category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        imported BOOLEAN NOT NULL DEFAULT FALSE,
+        row_order INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_statement_rows_import ON statement_rows(import_id);
+
+      CREATE TABLE IF NOT EXISTS statement_templates (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        till_id INTEGER NOT NULL UNIQUE,
+        source_format TEXT,
+        mapping JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_statement_templates_till ON statement_templates(till_id);
+    `);
+
+    // Existing databases predating the column-mapping step.
+    await client.query(`
+      ALTER TABLE statement_imports ADD COLUMN IF NOT EXISTS raw_grid JSONB;
+    `);
+
     console.log('✓ Database migration completed');
   } catch (error) {
     console.error('✗ Database migration failed:', error.message);

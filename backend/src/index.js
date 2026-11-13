@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 import { authRouter } from './routes/auth.js';
+import statementRouter from './routes/statement.js';
 import syncRouter from './routes/sync.js';
 import dashboardRouter from './routes/dashboard.js';
 import entitiesRouter from './routes/entities.js';
@@ -65,6 +66,7 @@ const auth = requireAuth();
 
 // Routes
 app.use('/api/auth', authRouter());
+app.use('/api/statement', auth, statementRouter);
 app.use('/api/sync', auth, syncRouter);
 app.use('/api/dashboard', auth, dashboardRouter);
 app.use('/api/entities', auth, entitiesRouter);
