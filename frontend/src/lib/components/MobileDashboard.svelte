@@ -18,6 +18,7 @@
 
   function buildSegments(list, total) {
     const rows = list.slice(0, 5).map((category, index) => ({
+      key: `category-${index}`,
       label: category.name || "Sin categoría",
       amount: category.total,
       count: category.count || 0,
@@ -27,7 +28,8 @@
     const rest = list.slice(5);
     if (rest.length) {
       rows.push({
-        label: "Otros",
+        key: "rest",
+        label: "Otras categorías",
         amount: rest.reduce((sum, category) => sum + category.total, 0),
         count: rest.reduce((sum, category) => sum + (category.count || 0), 0),
         color: COLORS[5],
@@ -220,7 +222,7 @@
               class="stroke-brand-surface-2"
               stroke-width="7"
             />
-            {#each segments as segment (segment.label)}
+            {#each segments as segment (segment.key)}
               <circle
                 cx="21"
                 cy="21"
@@ -255,7 +257,7 @@
           </svg>
 
           <div class="mt-2">
-            {#each segments as segment (segment.label)}
+            {#each segments as segment (segment.key)}
               <div
                 class="border-t border-brand-surface-2 py-2 first:border-t-0"
               >
