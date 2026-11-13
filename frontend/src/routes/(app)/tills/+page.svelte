@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
   import { apiGet, apiPost, apiPut, apiDelete } from "$lib/api";
   import { formatCurrency } from "$lib/formatting";
 
@@ -140,7 +141,15 @@
             >
               {formatCurrency(till.balance)}
             </div>
-            <div class="mt-3 flex gap-2">
+            <div class="mt-3 flex flex-wrap gap-2">
+              {#if till.is_bank}
+                <button
+                  class="button-secondary text-xs px-3 py-1"
+                  on:click={() => goto(`/statement?till=${till.id}`)}
+                >
+                  Importar extracto
+                </button>
+              {/if}
               <button class="button-secondary text-xs px-3 py-1" on:click={() => openEdit(till)}>
                 Editar
               </button>

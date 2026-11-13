@@ -152,3 +152,38 @@ export async function getCurrentUser() {
 export async function changePassword(body) {
   return apiPost('/auth/change-password', body);
 }
+
+/**
+ * Bank statement import: upload + parse (grid/mapping), review, finalize.
+ */
+export async function parseStatement(file, tillId) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('till_id', String(tillId));
+  return apiPostMultipart('/statement/parse', formData);
+}
+
+export async function mapStatementImport(id, mapping, saveTemplate) {
+  return apiPost(`/statement/imports/${id}/map`, { mapping, save_template: saveTemplate });
+}
+
+export async function getStatementImports(tillId) {
+  const query = tillId ? `?till_id=${tillId}` : '';
+  return apiGet(`/statement/imports${query}`);
+}
+
+export async function getStatementImport(id) {
+  return apiGet(`/statement/imports/${id}`);
+}
+
+export async function assignStatementRows(id, assignments) {
+  return apiPatch(`/statement/imports/${id}/rows`, { assignments });
+}
+
+export async function importStatement(id) {
+  return apiPost(`/statement/imports/${id}/import`, {});
+}
+
+export async function deleteStatementImport(id) {
+  return apiDelete(`/statement/imports/${id}`);
+}
