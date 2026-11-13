@@ -64,11 +64,24 @@
       const meData = await getCurrentUser();
       authStore.setToken(token, meData.user);
     } catch (err) {
-      console.error("No se pudo verificar la sesion:", err);
-      authStore.logout();
+      // Only a definitive 401 invalidates the session. A network error or a
+      // transient 5xx (backend restarting) must not log the user out.
+      if (err?.status === 401) {
+        authStore.logout();
+      } else {
+        console.error("No se pudo verificar la sesion (error transitorio):", err);
+      }
     } finally {
       checkingSession = false;
     }
+  }
+
+  function handleUpdate() {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready.then((reg) => {
+      reg.waiting?.postMessage({ type: "SKIP_WAITING" });
+      window.location.reload();
+    });
   }
 
   onMount(() => {
@@ -89,11 +102,19 @@
       });
     }
 
+    // Show the update toast only when a new service worker is actually waiting.
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.addEventListener("message", (event) => {
-        if (event.data?.type === "UPDATE_AVAILABLE") {
-          updateAvailable = true;
-        }
+      navigator.serviceWorker.ready.then((reg) => {
+        if (reg.waiting) updateAvailable = true;
+        reg.addEventListener("updatefound", () => {
+          const worker = reg.installing;
+          worker?.addEventListener("statechange", () => {
+            if (worker.state === "installed" && navigator.serviceWorker.controller) {
+              updateAvailable = true;
+            }
+          });
+        });
+        reg.update().catch(() => {});
       });
     }
   });
@@ -261,7 +282,7 @@
         <span class="text-sm">Nueva versión disponible</span>
         <button
           class="button-primary text-sm"
-          on:click={() => window.location.reload()}
+          on:click={handleUpdate}
         >
           Recargar
         </button>

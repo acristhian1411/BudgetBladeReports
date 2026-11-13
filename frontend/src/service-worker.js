@@ -11,7 +11,6 @@ self.addEventListener('install', (event) => {
 	event.waitUntil(
 		caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
 	);
-	self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -25,14 +24,15 @@ self.addEventListener('activate', (event) => {
 						.map((key) => caches.delete(key))
 				)
 			)
-			.then(() => self.clients.claim())
-			.then(() => self.clients.matchAll())
-			.then((clients) => {
-				for (const client of clients) {
-					client.postMessage({ type: 'UPDATE_AVAILABLE' });
-				}
-			})
 	);
+});
+
+// The page asks for a reload (via the "Nueva versión" toast) by sending
+// SKIP_WAITING; the new worker is activated on the next navigation/reload.
+self.addEventListener('message', (event) => {
+	if (event.data?.type === 'SKIP_WAITING') {
+		self.skipWaiting();
+	}
 });
 
 self.addEventListener('fetch', (event) => {
